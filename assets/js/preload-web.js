@@ -123,7 +123,38 @@ document.addEventListener('click', (event) => {
       ipcRenderer.send('proactive-parse-request', anchor.href);
     }
   }
+  // 影巢等戏剧网站点击优化 - 即时视觉反馈
+  const hostname = window.location.hostname;
+  if (hostname.includes('movie1080') || hostname.includes('monkey-flix') || hostname.includes('letu') || hostname.includes('ncat21')) {
+    const anchor = event.target.closest('a');
+    if (anchor && anchor.href) {
+      console.log('[preload-web] Drama site link clicked:', anchor.href);
+      // 添加即时视觉反馈
+      document.body.style.cursor = 'wait';
+      setTimeout(() => {
+        document.body.style.cursor = '';
+      }, 2000);
+    }
+  }
 }, true); // 使用捕获阶段以最快速度拦截事件
+
+
+// --- 戏剧网站预加载优化 ---
+// 鼠标悬停时预加载链接
+document.addEventListener('mouseover', (event) => {
+  const hostname = window.location.hostname;
+  if (hostname.includes('movie1080') || hostname.includes('monkey-flix') || hostname.includes('letu') || hostname.includes('ncat21')) {
+    const anchor = event.target.closest('a');
+    if (anchor && anchor.href && anchor.href.startsWith('http')) {
+      // 预加载链接（使用 link prefetch）
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = anchor.href;
+      link.as = 'document';
+      document.head.appendChild(link);
+    }
+  }
+}, { passive: true });
 
 
 // --- DOM 监控 ---

@@ -121,10 +121,10 @@ const DEFAULT_API_LIST = [
 ];
 
 const DEFAULT_DRAMA_SITES = [
-    { value: 'https://www.movie1080.xyz/', label: '影巢movie' },
-    { value: 'https://monkey-flix.com/', label: '猴影工坊' },
-    { value: 'https://www.letu.me/', label: '茉小影' },
-    { value: 'https://www.ncat21.com/', label: '网飞猫' }
+    { value: 'https://www.movie1080.xyz/', label: '影巢movie', timeout: 20000 },
+    { value: 'https://monkey-flix.com/', label: '猴影工坊', timeout: 15000 },
+    { value: 'https://www.letu.me/', label: '茉小影', timeout: 15000 },
+    { value: 'https://www.ncat21.com/', label: '网飞猫', timeout: 15000 }
 ];
 
 let apiList = [...DEFAULT_API_LIST];
