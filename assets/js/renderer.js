@@ -252,22 +252,28 @@ function parseYoukuUrl() {
     }
 }
 
-function navigateTo(url, isPlatformSwitch = false, themeVars = null) {
+function navigateTo(url, isPlatformSwitch = false, themeVars = null, clearHistory = false) {
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        mainContent.style.opacity = '0';
+        mainContent.style.transition = 'opacity 0.5s ease-out';
+    }
+    
     loadingOverlay.classList.remove('hidden');
-    // Force sync the address bar immediately
     urlInput.value = url;
     currentVideoUrl = url;
     isCurrentlyParsing = false;
 
-    window.voidAPI.navigate(url, isPlatformSwitch, themeVars);
+    setTimeout(() => {
+        window.voidAPI.navigate(url, isPlatformSwitch, themeVars, clearHistory);
 
-    // Sync quick-drama-select if we are in drama mode
-    if (container.classList.contains('drama-mode')) {
-        const dramaSite = dramaSites.find(site => url.startsWith(site.value));
-        if (dramaSite) {
-            quickDramaSelect.value = dramaSite.value;
+        if (container.classList.contains('drama-mode')) {
+            const dramaSite = dramaSites.find(site => url.startsWith(site.value));
+            if (dramaSite) {
+                quickDramaSelect.value = dramaSite.value;
+            }
         }
-    }
+    }, 500);
 }
 
 populateSelect(platformSelect, platforms);
@@ -286,13 +292,14 @@ platformSelect.addEventListener('change', (event) => {
     const selectedPlatform = event.target.value;
     isCurrentlyParsing = false;
     currentYoukuUrl = '';
+    
     if (selectedPlatform === 'https://www.youku.com') {
         youkuCustomPage.style.display = 'flex';
         urlInput.value = '';
         window.voidAPI.setViewVisibility(false);
     } else {
         youkuCustomPage.style.display = 'none';
-        navigateTo(selectedPlatform, true);
+        window.voidAPI.resetModule(selectedPlatform);
     }
 });
 
@@ -358,7 +365,7 @@ quickParseButton.addEventListener('click', () => {
 });
 
 quickDramaSelect.addEventListener('change', (event) => {
-    navigateTo(event.target.value);
+    window.voidAPI.resetModule(event.target.value);
 });
 
 quickModeToggle.addEventListener('click', (event) => {
@@ -371,13 +378,11 @@ forwardButton.addEventListener('click', () => window.voidAPI.goForward());
 homeButton.addEventListener('click', () => {
     isCurrentlyParsing = false;
     const isDramaMode = container.classList.contains('drama-mode');
+    
     if (isDramaMode) {
-        try {
-            const currentUrl = new URL(urlInput.value);
-            const rootUrl = `${currentUrl.protocol}//${currentUrl.hostname}`;
-            navigateTo(rootUrl);
-        } catch (error) {
-            console.error("Invalid URL in address bar:", urlInput.value);
+        const homeUrl = dramaSites.length > 0 ? dramaSites[0].value : '';
+        if (homeUrl) {
+            window.voidAPI.resetModule(homeUrl);
         }
     } else {
         const homeUrl = platformSelect.value;
@@ -386,7 +391,7 @@ homeButton.addEventListener('click', () => {
             window.voidAPI.setViewVisibility(false);
             urlInput.value = '';
         } else {
-            navigateTo(homeUrl, true);
+            window.voidAPI.resetModule(homeUrl);
         }
     }
 });
@@ -455,6 +460,11 @@ window.voidAPI.onNavStateUpdate(({ canGoBack, canGoForward }) => {
 
 window.voidAPI.onLoadFinished(() => {
     loadingOverlay.classList.add('hidden');
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        mainContent.style.transition = 'opacity 0.5s ease-in';
+        mainContent.style.opacity = '1';
+    }
 });
 
 // 处理主动探测到的视频 URL，实现零延迟注入
@@ -486,9 +496,18 @@ function initialize() {
     refreshDynamicUI();
 
     updateDOMForTheme(true);
-    // Use setTimeout so the DOM and IPC have time to settle their visual state before navigation triggers
+    
+    // Startup: Left sidebar shows Drama mode, Right shows Tencent Video homepage
     setTimeout(() => {
-        navigateForTheme(true);
+        const tencentUrl = 'https://v.qq.com';
+        const theme = {
+            '--av-primary-bg': '#000000',
+            '--av-accent-color': '#333333',
+            '--av-highlight-color': '#C0FAA0'
+        };
+        
+        window.voidAPI.setViewVisibility(false);
+        navigateTo(tencentUrl, false, theme, false);
     }, 50);
 }
 // Moved to bottom to ensure all functions are defined
@@ -533,13 +552,13 @@ function navigateForTheme(isSwitchingToDrama) {
         ? (dramaSites.length > 0 ? dramaSites[0].value : '')
         : platformSelect.value;
 
-    if (!url) return; // Safety check
+    if (!url) return;
 
     window.voidAPI.setViewVisibility(false);
     if (url === 'https://www.youku.com' && !isSwitchingToDrama) {
         youkuCustomPage.style.display = 'flex';
     } else {
-        navigateTo(url, !isSwitchingToDrama, theme);
+        window.voidAPI.resetModule(url);
     }
 }
 
@@ -695,9 +714,11 @@ function refreshDramaSidebar() {
         </div>
     `).join('');
 
-    // Re-attach listeners to new buttons
+    // Re-attach listeners to new buttons with reset functionality
     dramaControls.querySelectorAll('.custom-drama-btn').forEach(btn => {
-        btn.addEventListener('click', () => navigateTo(btn.dataset.url));
+        btn.addEventListener('click', () => {
+            window.voidAPI.resetModule(btn.dataset.url);
+        });
     });
 }
 

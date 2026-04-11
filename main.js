@@ -89,7 +89,14 @@ let currentThemeCss = `:root { --av-primary-bg: #1e1e2f; --av-accent-color: #3a3
 const scrollbarCss = fs.readFileSync(path.join(__dirname, 'assets', 'css', 'view-style.css'), 'utf8');
 
 // --- Pre-rendering Logic ---
-const viewPool = new Map(); // Stores fully rendered BrowserViews persistently
+const viewPool = new Map();
+const platformHomePages = [
+  'https://v.qq.com',
+  'https://www.iqiyi.com',
+  'https://www.youku.com',
+  'https://www.bilibili.com',
+  'https://www.mgtv.com'
+];
 const dramaSites = [
   'https://monkey-flix.com/',
   'https://www.movie1080.xyz/',
@@ -97,13 +104,19 @@ const dramaSites = [
   'https://www.ncat21.com/'
 ];
 
-async function preloadSites() {
-  console.log('Starting pre-rendering of drama sites...');
-  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+let isPreloading = false;
 
-  for (const url of dramaSites) {
+async function preloadAllSites() {
+  if (isPreloading) return;
+  isPreloading = true;
+  console.log('[Preload] Starting background pre-rendering...');
+  
+  const allSites = [...platformHomePages, ...dramaSites];
+  
+  for (const url of allSites) {
+    if (viewPool.has(url)) continue;
+    
     try {
-      console.log(`Pre-rendering ${url}`);
       const ghostView = new BrowserView({
         webPreferences: {
           contextIsolation: true,
@@ -114,39 +127,34 @@ async function preloadSites() {
       });
       ghostView.setBackgroundColor('#1e1e2f');
       attachViewEvents(ghostView);
-
-      const loadPromise = new Promise((resolve, reject) => {
-        const handleFinish = () => {
-          cleanup();
+      
+      await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log(`[Preload] Timeout for ${url}, continuing...`);
           resolve();
-        };
-        const handleFail = (event, errorCode, errorDescription) => {
-          cleanup();
-          if (errorCode !== -3) { // -3 is ABORTED
-            reject(new Error(`ERR_FAILED (${errorCode}) loading '${url}': ${errorDescription}`));
-          } else {
-            resolve();
-          }
-        };
-        const cleanup = () => {
-          ghostView.webContents.removeListener('did-finish-load', handleFinish);
-          ghostView.webContents.removeListener('did-fail-load', handleFail);
-        };
-
-        ghostView.webContents.on('did-finish-load', handleFinish);
-        ghostView.webContents.on('did-fail-load', handleFail);
+        }, 8000);
+        
+        ghostView.webContents.on('did-finish-load', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        ghostView.webContents.on('did-fail-load', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
         ghostView.webContents.loadURL(url);
       });
-
-      await loadPromise;
-      viewPool.set(url, ghostView); // Store the fully rendered view
-      console.log(`Finished pre-rendering ${url}`);
+      
+      viewPool.set(url, ghostView);
+      console.log(`[Preload] Cached: ${url}`);
     } catch (error) {
-      console.error(`Failed to pre-render ${url}:`, error);
+      console.error(`[Preload] Failed: ${url}`, error.message);
     }
-    await delay(500);
+    await new Promise(r => setTimeout(r, 200));
   }
-  console.log('Pre-rendering complete.');
+  
+  isPreloading = false;
+  console.log('[Preload] Background pre-rendering complete.');
 }
 
 function injectThemeCss(targetView) {
@@ -451,15 +459,21 @@ function createWindow() {
     }
   });
 
-  ipcMain.on('navigate', async (event, { url, isPlatformSwitch, themeVars }) => {
+ipcMain.on('navigate', async (event, { url, isPlatformSwitch, themeVars, clearHistory }) => {
     if (themeVars) {
       currentThemeCss = `:root { ${Object.entries(themeVars).map(([key, value]) => `${key}: ${value}`).join('; ')} }`;
     }
-    console.log(`[Navigate] Received request for ${url}.`);
+    console.log(`[Navigate] Received request for ${url}. Clear history: ${clearHistory}`);
+    
     if (view) {
+      view.webContents.stop();
+      view.webContents.setAudioMuted(true);
       mainWindow.removeBrowserView(view);
-      // Detach and persist in pool instead of destroying
-      console.log('[Navigate] Old BrowserView detached and kept in pool.');
+      
+      const currentUrl = view.webContents.getURL();
+      if (currentUrl && !viewPool.has(currentUrl)) {
+        viewPool.set(currentUrl, view);
+      }
     }
 
     let isFromCache = false;
@@ -473,19 +487,18 @@ function createWindow() {
       viewPool.set(url, view);
     }
 
+    view.webContents.setAudioMuted(false);
     mainWindow.setBrowserView(view);
-    updateViewBounds(true); // Must be true, setting it to 0x0 destroys frame buffer and causes layout flash
+    updateViewBounds(true);
 
-    /* // User reported slow platform switching, removing cookie clearing for now
-    if (isPlatformSwitch) {
-      await view.webContents.session.clearStorageData({ storages: ['cookies'] });
+    if (clearHistory && view.webContents.clearHistory) {
+      view.webContents.clearHistory();
+      console.log(`[Navigate] History cleared for ${url}`);
     }
-    */
 
     if (!isFromCache) {
       view.webContents.loadURL(url);
       console.log(`[Navigate] Loading URL: ${url}`);
-      // 核心提速：立即通知解析引擎开始工作，不等 BrowserView 的各种事件。解决“第一次加载慢”
       if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
         console.log('[Navigate] Extreme Speed: Early pulse for initial load:', url);
         mainWindow.webContents.send('fast-parse-url', url);
@@ -498,6 +511,52 @@ function createWindow() {
         mainWindow.webContents.send('url-updated', url);
         mainWindow.webContents.send('load-finished');
       }
+    }
+  });
+
+  ipcMain.on('reset-module', (event, url) => {
+    console.log(`[Reset Module] Resetting module to: ${url}`);
+    
+    if (view) {
+      view.webContents.stop();
+      view.webContents.setAudioMuted(true);
+      
+      if (view.webContents.clearHistory) {
+        view.webContents.clearHistory();
+      }
+      
+      mainWindow.removeBrowserView(view);
+      
+      const currentUrl = view.webContents.getURL();
+      if (currentUrl && !viewPool.has(currentUrl)) {
+        viewPool.set(currentUrl, view);
+      }
+    }
+    
+    let isFromCache = false;
+    if (viewPool.has(url)) {
+      view = viewPool.get(url);
+      isFromCache = true;
+    } else {
+      view = createNewBrowserView();
+      viewPool.set(url, view);
+    }
+    
+    view.webContents.setAudioMuted(false);
+    mainWindow.setBrowserView(view);
+    updateViewBounds(true);
+    
+    if (!isFromCache) {
+      view.webContents.loadURL(url);
+    } else {
+      injectThemeCss(view);
+      updateZoomFactor(view);
+    }
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('url-updated', url);
+      mainWindow.webContents.send('load-finished');
+      mainWindow.webContents.send('nav-state-updated', { canGoBack: false, canGoForward: false });
     }
   });
 
@@ -625,7 +684,10 @@ app.whenReady().then(async () => {
   }
 
   // Unconditionally preload sites on startup, regardless of session cache validity
-  await preloadSites();
+  // Run preloading in background without blocking
+  setTimeout(() => {
+    preloadAllSites().catch(err => console.error('[Preload] Background preload error:', err));
+  }, 100);
 
   // Initialize auto updater after window is ready
   initializeAutoUpdater();

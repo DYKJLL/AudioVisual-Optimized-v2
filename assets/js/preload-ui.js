@@ -3,8 +3,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('voidAPI', {
-  // Updated to accept themeVars
-  navigate: (url, isPlatformSwitch = false, themeVars = null) => ipcRenderer.send('navigate', { url, isPlatformSwitch, themeVars }),
+  // Updated to accept themeVars and clearHistory
+  navigate: (url, isPlatformSwitch = false, themeVars = null, clearHistory = false) => 
+    ipcRenderer.send('navigate', { url, isPlatformSwitch, themeVars, clearHistory }),
+
+  resetModule: (url) => ipcRenderer.send('reset-module', url),
 
   embedVideo: (url) => ipcRenderer.send('embed-video', url),
 
