@@ -130,62 +130,87 @@ const DEFAULT_DRAMA_SITES = [
 let apiList = [...DEFAULT_API_LIST];
 let dramaSites = [...DEFAULT_DRAMA_SITES];
 
-// --- Settings Persistence ---
+// --- Settings Persistence System (v2.0 - electron-store) ---
 const SettingsManager = {
-    load() {
-        try {
-            const savedApis = localStorage.getItem('apiList');
-            const savedDramas = localStorage.getItem('dramaSites');
-
-            if (savedApis) apiList = JSON.parse(savedApis);
-            if (savedDramas) {
-                dramaSites = JSON.parse(savedDramas);
-                // Temporary migration to clear old netflixgc cache and apply new defaults
-                if (dramaSites.some(d => d.value && d.value.includes('netflixgc.com'))) {
-                    console.log('Detected old default drama sites in storage. Resetting to new defaults.');
-                    dramaSites = [...DEFAULT_DRAMA_SITES];
-                    localStorage.setItem('dramaSites', JSON.stringify(dramaSites));
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load settings:', e);
+  async load() {
+    try {
+      console.log('[Settings] Loading from persistent storage...');
+      const result = await window.voidAPI.getAllSettings();
+      
+      if (result.success && result.data) {
+        if (result.data.apiList && result.data.apiList.length > 0) {
+          apiList = result.data.apiList;
+          console.log(`[Settings] ✅ Loaded ${apiList.length} API endpoints`);
         }
-    },
-    save(newApis, newDramas) {
-        try {
-            localStorage.setItem('apiList', JSON.stringify(newApis));
-            localStorage.setItem('dramaSites', JSON.stringify(newDramas));
-            apiList = newApis;
-            dramaSites = newDramas;
-            return true;
-        } catch (e) {
-            console.error('Failed to save settings:', e);
-            return false;
+        
+        if (result.data.dramaSites && result.data.dramaSites.length > 0) {
+          dramaSites = result.data.dramaSites;
+          
+          // Migration: Remove old netflixgc.com entries
+          if (dramaSites.some(d => d.value?.includes('netflixgc.com'))) {
+            console.log('[Settings] Migrating old drama sites...');
+            dramaSites = [...DEFAULT_DRAMA_SITES];
+            await this.save(apiList, dramaSites);
+          }
+          console.log(`[Settings] ✅ Loaded ${dramaSites.length} drama sites`);
         }
-    },
-    reset() {
-        localStorage.removeItem('apiList');
-        localStorage.removeItem('dramaSites');
-        apiList = [...DEFAULT_API_LIST];
-        dramaSites = [...DEFAULT_DRAMA_SITES];
-    },
-    // Helper to parse textarea into objects
-    parseInput(text) {
-        return text.split('\n')
-            .map(line => line.trim())
-            .filter(line => line.includes('|'))
-            .map(line => {
-                const [label, value] = line.split('|');
-                return { label: label.trim(), value: value.trim() };
-            });
-    },
-    // Helper to format objects for textarea
-    formatForInput(list) {
-        return list.map(item => `${item.label}|${item.value}`).join('\n');
+      } else {
+        console.warn('[Settings] Using defaults (no saved data or load failed)');
+      }
+    } catch (error) {
+      console.error('[Settings] ❌ Failed to load:', error);
     }
+  },
+  
+  async save(newApis, newDramas) {
+    try {
+      const apiResult = await window.voidAPI.setSetting('apiList', newApis);
+      const dramaResult = await window.voidAPI.setSetting('dramaSites', newDramas);
+      
+      if (apiResult.success && dramaResult.success) {
+        apiList = newApis;
+        dramaSites = newDramas;
+        console.log('[Settings] ✅ All settings saved successfully');
+        return true;
+      } else {
+        throw new Error('Failed to save one or more settings');
+      }
+    } catch (error) {
+      console.error('[Settings] ❌ Save failed:', error);
+      return false;
+    }
+  },
+  
+  async reset() {
+    try {
+      await window.voidAPI.resetSettings(); // Clear all
+      // Reset to defaults
+      apiList = [...DEFAULT_API_LIST];
+      dramaSites = [...DEFAULT_DRAMA_SITES];
+      // Re-save defaults
+      await this.save(apiList, dramaSites);
+      console.log('[Settings] ✅ Reset to defaults');
+    } catch (error) {
+      console.error('[Settings] ❌ Reset failed:', error);
+    }
+  },
+  
+  parseInput(text) {
+    return text.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.includes('|'))
+      .map(line => {
+        const [label, value] = line.split('|');
+        return { label: label.trim(), value: value.trim() };
+      });
+  },
+  
+  formatForInput(list) {
+    return list.map(item => `${item.label}|${item.value}`).join('\n');
+  }
 };
 
-SettingsManager.load();
+SettingsManager.load(); // Async load (now uses IPC)
 
 const platformSelect = document.getElementById('platform-select');
 const apiSelect = document.getElementById('api-select');
@@ -348,12 +373,10 @@ parseButton.addEventListener('click', () => {
 });
 
 apiSelect.addEventListener('change', () => {
-    syncSelectors(apiSelect, quickApiSelect);
     if (platformSelect.value !== 'https://www.youku.com') {
         triggerParse();
     }
 });
-
 
 sidebarToggleButton.addEventListener('click', () => {
     // Force direct class manipulation for robustness
@@ -488,29 +511,34 @@ window.voidAPI.onInitSidebarState((isCollapsed) => {
     }
 });
 
-// --- Initialization ---
-function initialize() {
-    // Initial UI state setup
-    dramaControls.style.display = 'none';
-    dramaUsageTips.style.display = 'none';
+// --- Initialization (Async for Settings) ---
+async function initialize() {
+  // ✅ CRITICAL: Wait for settings to load before UI init
+  await SettingsManager.load();
+  
+  console.log('[Init] Settings loaded, initializing UI...');
+  
+  // Initial UI state setup
+  dramaControls.style.display = 'none';
+  dramaUsageTips.style.display = 'none';
 
-    // Populate Dynamic UI from settings
-    refreshDynamicUI();
+  // Populate Dynamic UI from settings
+  refreshDynamicUI();
 
-    updateDOMForTheme(true);
+  updateDOMForTheme(true);
+  
+  // Startup: Left sidebar shows Drama mode, Right shows Tencent Video homepage
+  setTimeout(() => {
+    const tencentUrl = 'https://v.qq.com';
+    const theme = {
+      '--av-primary-bg': '#000000',
+      '--av-accent-color': '#333333',
+      '--av-highlight-color': '#C0FAA0'
+    };
     
-    // Startup: Left sidebar shows Drama mode, Right shows Tencent Video homepage
-    setTimeout(() => {
-        const tencentUrl = 'https://v.qq.com';
-        const theme = {
-            '--av-primary-bg': '#000000',
-            '--av-accent-color': '#333333',
-            '--av-highlight-color': '#C0FAA0'
-        };
-        
-        window.voidAPI.setViewVisibility(false);
-        navigateTo(tencentUrl, false, theme, false);
-    }, 50);
+    window.voidAPI.setViewVisibility(false);
+    navigateTo(tencentUrl, false, theme, false);
+  }, 50);
 }
 // Moved to bottom to ensure all functions are defined
 
@@ -701,9 +729,11 @@ function refreshDynamicUI() {
 }
 
 function refreshDramaSidebar() {
-    const dramaControls = document.querySelector('.drama-controls');
-    // Keep internal buttons by regenerating them
-    dramaControls.innerHTML = dramaSites.map(site => `
+    const dramaControlsEl = document.querySelector('.drama-controls');
+    if (!dramaControlsEl) return;
+    
+    // ✅ Use event delegation - only bind once in initialization
+    dramaControlsEl.innerHTML = dramaSites.map(site => `
         <div class="control-group">
             <button class="action-button custom-drama-btn" data-url="${site.value}">
                 <div class="button-icon">
@@ -715,13 +745,7 @@ function refreshDramaSidebar() {
             </button>
         </div>
     `).join('');
-
-    // Re-attach listeners to new buttons with reset functionality
-    dramaControls.querySelectorAll('.custom-drama-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            window.voidAPI.resetModule(btn.dataset.url);
-        });
-    });
+    // Note: Event listener is attached once in DOMContentLoaded (see below)
 }
 
 
@@ -730,6 +754,18 @@ function refreshDramaSidebar() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    // ✅ Event Delegation for Drama Buttons (prevents listener accumulation)
+    const dramaControlsContainer = document.querySelector('.drama-controls');
+    if (dramaControlsContainer) {
+        dramaControlsContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.custom-drama-btn');
+            if (btn && btn.dataset.url) {
+                window.voidAPI.resetModule(btn.dataset.url);
+            }
+        });
+        console.log('[Event] ✅ Drama button delegation attached');
+    }
+    
     const externalLink = document.querySelector('.footer a');
     if (externalLink) {
         externalLink.addEventListener('click', (event) => {
@@ -844,35 +880,55 @@ document.addEventListener('DOMContentLoaded', () => {
         showUpdateNotification(`ℹ️ ${info.message}\n当前版本：v${info.version}`, 'info', false);
     });
 
-    // --- Sidebar Auto-Scaling Logic ---
+    // --- ✅ Optimized Sidebar Auto-Scaling (v2.0) ---
     const sidebar = document.querySelector('.sidebar');
     const sidebarScaler = document.querySelector('.sidebar-scaler');
 
     if (sidebar && sidebarScaler) {
-        const updateSidebarScale = () => {
-            const idealHeight = sidebarScaler.scrollHeight;
-            const availableHeight = sidebar.clientHeight;
+      let scaleUpdatePending = false; // Prevent re-entry
+      
+      const updateSidebarScale = () => {
+        if (scaleUpdatePending) return; // Skip if already pending
+        
+        const idealHeight = sidebarScaler.scrollHeight;
+        const availableHeight = sidebar.clientHeight;
+        const verticalPadding = parseFloat(getComputedStyle(sidebarScaler).paddingTop) + parseFloat(getComputedStyle(sidebarScaler).paddingBottom);
+        const effectiveAvailableHeight = availableHeight - verticalPadding;
 
-            const verticalPadding = parseFloat(getComputedStyle(sidebarScaler).paddingTop) + parseFloat(getComputedStyle(sidebarScaler).paddingBottom);
-            const effectiveAvailableHeight = availableHeight - verticalPadding;
+        if (idealHeight > effectiveAvailableHeight + 2) {
+          const scale = effectiveAvailableHeight / idealHeight;
+          sidebarScaler.style.transform = `scale(${scale})`;
+        } else {
+          sidebarScaler.style.transform = 'scale(1)';
+        }
+        
+        scaleUpdatePending = false;
+      };
 
-            // Add a small tolerance to prevent scaling for minor pixel differences
-            if (idealHeight > effectiveAvailableHeight + 2) {
-                const scale = effectiveAvailableHeight / idealHeight;
-                sidebarScaler.style.transform = `scale(${scale})`;
-            } else {
-                sidebarScaler.style.transform = 'scale(1)';
-            }
-        };
+      // Use requestAnimationFrame for batching
+      const debouncedScaleUpdate = () => {
+        if (!scaleUpdatePending) {
+          scaleUpdatePending = true;
+          requestAnimationFrame(updateSidebarScale);
+        }
+      };
 
-        const resizeObserver = new ResizeObserver(updateSidebarScale);
-        resizeObserver.observe(sidebar);
+      const resizeObserver = new ResizeObserver(debouncedScaleUpdate);
+      resizeObserver.observe(sidebar);
 
-        const mutationObserver = new MutationObserver(updateSidebarScale);
-        mutationObserver.observe(sidebarScaler, { childList: true, subtree: true, attributes: true });
+      // ✅ Removed attributes: true to prevent self-triggering loops
+      const mutationObserver = new MutationObserver(debouncedScaleUpdate);
+      mutationObserver.observe(sidebarScaler, { 
+        childList: true, 
+        subtree: true,
+        attributes: false // Don't observe style changes (prevents infinite loop)
+      });
 
-        setTimeout(updateSidebarScale, 100);
+      setTimeout(debouncedScaleUpdate, 100);
     }
+
+    console.log('[Init] ✅ Initialization complete');
 });
 
-initialize();
+// ✅ Start async initialization
+initialize().catch(err => console.error('[Init] ❌ Failed:', err));
