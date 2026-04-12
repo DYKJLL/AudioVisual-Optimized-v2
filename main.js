@@ -480,8 +480,23 @@ function createWindow() {
       }
     } else {
       if (view && mainWindow) {
-        console.log('[Visibility] Hiding view by detaching and muting it.');
+        console.log('[Visibility] Hiding view, stopping video.');
         view.webContents.setAudioMuted(true);
+        view.webContents.executeJavaScript(`
+          document.querySelectorAll('video').forEach(v => {
+            v.pause();
+            v.src = '';
+            v.load();
+          });
+          document.querySelectorAll('iframe').forEach(f => {
+            f.src = 'about:blank';
+          });
+        `).catch(() => {});
+        mainWindow.removeBrowserView(view);
+      }
+    }
+  });
+        `).catch(() => {});
         mainWindow.removeBrowserView(view);
       }
     }
@@ -499,6 +514,18 @@ ipcMain.on('navigate', async (event, { url, isPlatformSwitch, themeVars, clearHi
     if (view) {
       view.webContents.stop();
       view.webContents.setAudioMuted(true);
+      
+      view.webContents.executeJavaScript(`
+        document.querySelectorAll('video').forEach(v => {
+          v.pause();
+          v.src = '';
+          v.load();
+        });
+        document.querySelectorAll('iframe').forEach(f => {
+          f.src = 'about:blank';
+        });
+      `).catch(() => {});
+      
       mainWindow.removeBrowserView(view);
       
       const currentUrl = view.webContents.getURL();
@@ -578,6 +605,17 @@ ipcMain.on('navigate', async (event, { url, isPlatformSwitch, themeVars, clearHi
     if (view) {
       view.webContents.stop();
       view.webContents.setAudioMuted(true);
+      
+      view.webContents.executeJavaScript(`
+        document.querySelectorAll('video').forEach(v => {
+          v.pause();
+          v.src = '';
+          v.load();
+        });
+        document.querySelectorAll('iframe').forEach(f => {
+          f.src = 'about:blank';
+        });
+      `).catch(() => {});
       
       if (view.webContents.clearHistory) {
         view.webContents.clearHistory();
