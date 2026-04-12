@@ -348,10 +348,12 @@ parseButton.addEventListener('click', () => {
 });
 
 apiSelect.addEventListener('change', () => {
+    syncSelectors(apiSelect, quickApiSelect);
     if (platformSelect.value !== 'https://www.youku.com') {
         triggerParse();
     }
 });
+
 
 sidebarToggleButton.addEventListener('click', () => {
     // Force direct class manipulation for robustness
