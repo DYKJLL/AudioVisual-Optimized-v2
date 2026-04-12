@@ -45,4 +45,20 @@ contextBridge.exposeInMainWorld('voidAPI', {
   closeWindow: () => ipcRenderer.send('close-window'),
   toggleSidebar: (isCollapsed) => ipcRenderer.send('sidebar-toggle', isCollapsed),
   showWindow: () => ipcRenderer.send('show-window'),
+  
+  // ✅ Settings API (v2.0 - Persistent Storage)
+  getSetting: (key) => ipcRenderer.invoke('settings:get', key),
+  setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  getAllSettings: () => ipcRenderer.invoke('settings:getAll'),
+  resetSettings: (key) => ipcRenderer.invoke('settings:reset', key),
+  exportSettings: () => ipcRenderer.invoke('settings:export'),
+  
+  // Settings change listener
+  onSettingsChanged: (callback) => ipcRenderer.on('settings:changed', (event, data) => callback(data)),
+  
+  // ✅ Module Loading State Events (v2.1)
+  onModuleLoadingStart: (callback) => ipcRenderer.on('module-loading-start', (event, data) => callback(data)),
+  onModuleLoadingComplete: (callback) => ipcRenderer.on('module-loading-complete', (event, data) => callback(data)),
+  onModuleLoadingTimeout: (callback) => ipcRenderer.on('module-loading-timeout', (event, data) => callback(data)),
+  onModuleLoadingError: (callback) => ipcRenderer.on('module-loading-error', (event, data) => callback(data))
 });
