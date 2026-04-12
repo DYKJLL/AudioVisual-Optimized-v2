@@ -98,10 +98,10 @@ const platformHomePages = [
   'https://www.mgtv.com'
 ];
 const dramaSites = [
-  { url: 'https://monkey-flix.com/', name: '猴影工坊', timeout: 15000, retry: 2 },
-  { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 20000, retry: 3 },
-  { url: 'https://www.letu.me/', name: '茉小影', timeout: 15000, retry: 2 },
-  { url: 'https://www.ncat21.com/', name: '网飞猫', timeout: 15000, retry: 2 }
+  { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 30000, retry: 1 },
+  { url: 'https://monkey-flix.com/', name: '猴影工坊', timeout: 20000, retry: 1 },
+  { url: 'https://www.letu.me/', name: '茉小影', timeout: 20000, retry: 1 },
+  { url: 'https://www.ncat21.com/', name: '网飞猫', timeout: 20000, retry: 1 }
 ];
 
 let isPreloading = false;
