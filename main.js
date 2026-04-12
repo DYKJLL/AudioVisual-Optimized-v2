@@ -109,81 +109,57 @@ let isPreloading = false;
 async function preloadAllSites() {
   if (isPreloading) return;
   isPreloading = true;
-  console.log('[Preload] Starting background pre-rendering...');
+  console.log('[Preload] Starting platform sites pre-rendering...');
   
-  const allSiteUrls = [...platformHomePages, ...dramaSites.map(s => s.url)];
-  
-  for (const url of allSiteUrls) {
+  for (const url of platformHomePages) {
     if (viewPool.has(url)) continue;
     
-    const siteConfig = dramaSites.find(s => s.url === url);
-    const timeout = siteConfig ? siteConfig.timeout : 8000;
-    const maxRetry = siteConfig ? siteConfig.retry : 1;
-    
-    let retryCount = 0;
-    let loaded = false;
-    
-    while (retryCount < maxRetry && !loaded) {
-      try {
-        const ghostView = new BrowserView({
-          webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: false,
-            preload: path.join(__dirname, 'assets', 'js', 'preload-web.js'),
-            plugins: true,
-            webSecurity: false
-          }
-        });
-        ghostView.setBackgroundColor('#1e1e2f');
-        attachViewEvents(ghostView);
-        
-        loaded = await new Promise((resolve) => {
-          const loadTimeout = setTimeout(() => {
-            console.log(`[Preload] Timeout (${timeout}ms) for ${url}, retry ${retryCount + 1}/${maxRetry}`);
-            resolve(false);
-          }, timeout);
-          
-          ghostView.webContents.on('did-finish-load', () => {
-            clearTimeout(loadTimeout);
-            console.log(`[Preload] Successfully loaded: ${url}`);
-            resolve(true);
-          });
-          ghostView.webContents.on('did-fail-load', (event, code, desc) => {
-            clearTimeout(loadTimeout);
-            console.log(`[Preload] Failed to load ${url}: ${desc}`);
-            resolve(false);
-          });
-          ghostView.webContents.loadURL(url);
-        });
-        
-        if (loaded) {
-          viewPool.set(url, ghostView);
-          console.log(`[Preload] Cached: ${url}`);
-        } else {
-          if (!ghostView.webContents.isDestroyed()) {
-            ghostView.webContents.destroy();
-          }
-          retryCount++;
+    try {
+      const ghostView = new BrowserView({
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          preload: path.join(__dirname, 'assets', 'js', 'preload-web.js'),
+          plugins: true,
+          webSecurity: false
         }
-      } catch (error) {
-        console.error(`[Preload] Error loading ${url}:`, error.message);
-        retryCount++;
-      }
+      });
+      ghostView.setBackgroundColor('#1e1e2f');
       
-      if (!loaded && retryCount < maxRetry) {
-        await new Promise(r => setTimeout(r, 1000));
+      const loaded = await new Promise((resolve) => {
+        const loadTimeout = setTimeout(() => {
+          console.log(`[Preload] Timeout for ${url}`);
+          resolve(false);
+        }, 8000);
+        
+        ghostView.webContents.on('did-finish-load', () => {
+          clearTimeout(loadTimeout);
+          console.log(`[Preload] Loaded: ${url}`);
+          resolve(true);
+        });
+        ghostView.webContents.on('did-fail-load', (event, code, desc) => {
+          clearTimeout(loadTimeout);
+          console.log(`[Preload] Failed: ${url} - ${desc}`);
+          resolve(false);
+        });
+        ghostView.webContents.loadURL(url);
+      });
+      
+      if (loaded) {
+        viewPool.set(url, ghostView);
+        console.log(`[Preload] Cached: ${url}`);
+      } else {
+        if (!ghostView.webContents.isDestroyed()) {
+          ghostView.webContents.destroy();
+        }
       }
+    } catch (error) {
+      console.error(`[Preload] Error: ${url}`, error.message);
     }
-    
-    if (!loaded) {
-      console.log(`[Preload] Failed after ${maxRetry} retries: ${url}`);
-    }
-    
-    await new Promise(r => setTimeout(r, 200));
   }
   
   isPreloading = false;
-  console.log('[Preload] Background pre-rendering complete.');
+  console.log('[Preload] Platform sites pre-rendering complete.');
 }
 
 function injectThemeCss(targetView) {
