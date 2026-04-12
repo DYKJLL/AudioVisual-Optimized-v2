@@ -92,6 +92,13 @@
 
 
 
+.drama-mode .footer a {
+    color: var(--text-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
 .drama-mode .footer a:hover {
     color: var(--highlight-color);
 }

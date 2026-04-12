@@ -308,13 +308,6 @@ quickPlatformSelect.addEventListener('change', () => {
     platformSelect.dispatchEvent(new Event('change'));
 });
 
-apiSelect.addEventListener('change', () => {
-    syncSelectors(apiSelect, quickApiSelect);
-    if (platformSelect.value !== 'https://www.youku.com') {
-        triggerParse();
-    }
-});
-
 quickApiSelect.addEventListener('change', () => {
     syncSelectors(quickApiSelect, apiSelect);
     apiSelect.dispatchEvent(new Event('change'));
@@ -344,12 +337,6 @@ parseButton.addEventListener('click', () => {
         requestAnimationFrame(() => {
             triggerParse();
         });
-    }
-});
-
-apiSelect.addEventListener('change', () => {
-    if (platformSelect.value !== 'https://www.youku.com') {
-        triggerParse();
     }
 });
 

@@ -209,15 +209,23 @@ const DramaSiteOptimizer = {
   },
   
   init() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        this._doInit();
+      });
+    } else {
+      this._doInit();
+    }
+  },
+  
+  _doInit() {
     this.blockUnnecessaryResources();
     this.prefetchLinks();
     
-    // 页面加载完成后隐藏遮罩
     window.addEventListener('load', () => {
       setTimeout(() => this.hideLoadingOverlay(), 500);
     });
     
-    // 点击链接时显示遮罩
     document.addEventListener('click', (event) => {
       if (!this.isDramaSite()) return;
       
@@ -226,7 +234,6 @@ const DramaSiteOptimizer = {
         console.log('[DramaOptimizer] Link clicked:', anchor.href);
         this.showLoadingOverlay();
         
-        // 10秒后自动隐藏（超时保护）
         setTimeout(() => this.hideLoadingOverlay(), 10000);
       }
     }, true);
@@ -402,7 +409,7 @@ function startInjectionGuardian(url) {
         }
       }
     }
-  }, 50); // 50ms 超高频探测
+  }, 100);
 }
 
 // 核心：处理来自主进程的解析指令
