@@ -1,51 +1,44 @@
-// preload-web.js - Optimized for Drama Sites Performance
+// preload-web.js - 幽灵的职责：只催眠网站
 const { ipcRenderer } = require('electron');
-
 // --- Anti-Bot Detection ---
+// Overwrite the navigator.webdriver property to prevent detection by services like Cloudflare
 Object.defineProperty(navigator, 'webdriver', {
   get: () => false,
 });
 
-// --- Constants ---
+// --- 样式注入模块 ---
+
 const STYLE_ID = 'void-dynamic-styles';
 const BASE_TAG_SELECTOR = 'base[target="_self"]';
-const GUARDIAN_INITIAL_INTERVAL = 100;  // Changed from 50ms to 100ms
-const GUARDIAN_SLOW_INTERVAL = 300;     // Changed from 250ms to 300ms
-const GUARDIAN_SWITCH_THRESHOLD = 5000;
 
-// --- Extended Blocked Domains for Drama Sites ---
-const BLOCKED_DOMAINS = [
-  'google-analytics', 'googletagmanager', 'facebook.com', 'doubleclick',
-  'adservice', 'ads.', 'analytics.', 'tracking.', 'pixel.',
-  'googlesyndication', 'ad.doubleclick', 'pagead2.googlesyndication',
-  'adservice.google', 'ads.google', 'partner.googleadservices',
-  'tpc.googlesyndication', 'stats.g.doubleclick', 'ads-twitter',
-  'analytics.twitter', 'static.ads-twitter', 'connect.facebook',
-  'platform.twitter', 'syndication.twitter', 'ads.pubmatic',
-  'ads.yahoo', 'analytics.yandex', 'mc.yandex', 'adsserver.adsserver',
-  'criteo', 'adnxs', 'adsrvr', 'openx', 'rubiconproject', 'pubmatic',
-  'scorecardresearch', 'quantserve', 'newrelic', 'pingdom'
-];
-
-// --- Style Injection Module ---
+/**
+ * 在文档头部注入或更新一个<style>标签，并确保<base>标签存在。
+ * @param {string} cssContent - 要注入的CSS字符串。
+ */
 function applyStyles(cssContent) {
-  if (!document.head) return;
+  if (!document.head) {
+    return; // 如果<head>不存在则提前退出
+  }
 
+  // 1. 确保 <base target="_self"> 存在，修正链接跳转行为
   if (!document.head.querySelector(BASE_TAG_SELECTOR)) {
     const base = document.createElement('base');
     base.target = '_self';
     document.head.prepend(base);
   }
 
+  // 2. 查找或创建用于动态样式的<style>标签
   let styleElement = document.getElementById(STYLE_ID);
   if (!styleElement) {
     styleElement = document.createElement('style');
     styleElement.id = STYLE_ID;
+    // 插入到<head>的最前面，以确保我们的样式优先级最高
     document.head.prepend(styleElement);
   }
 
+  // 3. 更新样式内容 - 添加修复导航点击的样式和爱奇艺会员弹窗处理
   const fixedCssContent = cssContent + `
-    /* Fix navigation click issues */
+    /* 修复腾讯视频和哔哩哔哩导航点击问题 */
     .site-nav a, .nav-menu a, .header-nav a, .top-nav a, 
     .navigation a, .navbar a, .menu a, .header-menu a,
     .bili-header .nav-link, .bili-header .nav-item,
@@ -54,62 +47,57 @@ function applyStyles(cssContent) {
       cursor: pointer !important;
     }
     
+    /* 确保导航容器不阻止点击事件 */
     .site-nav, .nav-menu, .header-nav, .top-nav, 
     .navigation, .navbar, .menu, .header-menu,
     .bili-header, .txp_nav, .txp_header, .qq-header {
       pointer-events: auto !important;
     }
     
-    /* Hide popups and ads */
-    #playerPopup, #vipCoversBox, div.iqp-player-vipmask, div.iqp-player-paymask,
-    div.iqp-player-loginmask, div[class^=qy-header-login-pop], .covers_cloudCover__ILy8R,
-    #videoContent > div.loading_loading__vzq4j, .iqp-player-guide, div.m-iqyGuide-layer,
-    .loading_loading__vzq4j, [class*="XPlayer_defaultCover__"], .iqp-controller,
-    .plugin_ctrl_txp_bottom, .txp_progress_bar_container, .txp_progress_list, .txp_progress,
-    .plugin_ctrl_txp_shadow, .plugin_ctrl_txp_gradient_bottom,
-    .txp_full_screen_pause-active, .txp_full_screen_pause-active-mask, .txp_full_screen_pause-active-player,
+    /* 隐藏所有已知视频网站的牛皮癣弹窗、广告和干扰图层 (通杀黑名单) */
+    #playerPopup, 
+    #vipCoversBox, 
+    div.iqp-player-vipmask, 
+    div.iqp-player-paymask,
+    div.iqp-player-loginmask, 
+    div[class^=qy-header-login-pop],
+    .covers_cloudCover__ILy8R,
+    #videoContent > div.loading_loading__vzq4j,
+    .iqp-player-guide,
+    div.m-iqyGuide-layer,
+    .loading_loading__vzq4j,
+    [class*="XPlayer_defaultCover__"],
+    .iqp-controller,
+    /* 腾讯视频 */
+    .plugin_ctrl_txp_bottom, .txp_progress_bar_container, .txp_progress_list, .txp_progress, 
+    .plugin_ctrl_txp_shadow, .plugin_ctrl_txp_gradient_bottom, 
+    .txp_full_screen_pause-active, .txp_full_screen_pause-active-mask, .txp_full_screen_pause-active-player, 
     .txp_center_controls, .txp-layer-above-control, .txp-layer-dynamic-above-control--on,
     .txp_btn_play, .txp_btn, .txp_popup-active, .txp_popup_content, .mod_player_vip_ads,
     .playlist-overlay-minipay,
-    .browser-ver-tip, .videopcg-browser-tips, .qy-player-browser-tip, .iqp-browser-tip,
+    /* 爱奇艺及通用弹窗拦截 */
+    .browser-ver-tip, .videopcg-browser-tips, .qy-player-browser-tip, .iqp-browser-tip, 
     .m-pc-down, .m-pc-client, .qy-dialog-container, .iqp-client-guide, .qy-dialog-wrap,
     [class*="shapedPopup_container"], [class*="notSupportedDrm_drmTipsPopBox"],
     [class*="floatPage_floatPage"], #tvgCashierPage, [class*="popwin_fullCover"],
-    .bilibili-player-video-wrap, .bilibili-player-video-control, .bilibili-player-electric-panel {
+    /* 其他 */
+    .bilibili-player-video-wrap, .bilibili-player-video-control, .bilibili-player-electric-panel
+    /* 注意：已移除芒果 TV 容器隐藏，防止 0 宽度无法注入 */
+    /* .mgtv-player-wrap, .mgtv-player-control-bar, .mgtv-player-data-panel, .mgtv-player-layers, .mgtv-player-ad, .mgtv-player-overlay, #m-player-ad */
+    {
       display: none !important;
       visibility: hidden !important;
       opacity: 0 !important;
       pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
       z-index: -9999 !important;
-    }
-    
-    /* Movie1080.xyz (YingChao) - Fix footer link contrast */
-    .friend-links, .friend-link, .links-footer, .footer-links, .site-links,
-    footer a, .footer a, [class*="friend"], [class*="link-list"] a, [class*="links"] a {
-      color: #ffffff !important;
-      background-color: rgba(30, 30, 47, 0.9) !important;
-      padding: 8px 12px !important;
-      border-radius: 4px !important;
-      text-shadow: none !important;
-    }
-    
-    footer, .footer, [class*="footer"] {
-      background-color: rgba(30, 30, 47, 0.95) !important;
-    }
-    
-    footer *, .footer *, [class*="footer"] * {
-      color: #dcdce4 !important;
-    }
-    
-    /* Ensure high contrast for all text in drama sites */
-    body, body * {
-      text-shadow: none !important;
     }
   `;
   styleElement.textContent = fixedCssContent;
 }
 
-// --- Drama Site Optimizer ---
+// --- 戏剧网站优化模块 (v2.2 - Conservative & Safe) ---
 const DramaSiteOptimizer = {
   isDramaSite() {
     const hostname = window.location.hostname;
@@ -117,85 +105,115 @@ const DramaSiteOptimizer = {
            hostname.includes('letu') || hostname.includes('ncat21');
   },
   
-  // Enhanced resource blocking
+  // ✅ 安全模式：仅阻止明确的广告/追踪资源
   blockUnnecessaryResources() {
-    // Block scripts
+    if (!this.isDramaSite()) return;
+    
+    console.log('[DramaOptimizer] �️ Initializing SAFE resource blocking...');
+    
+    // ⚠️ 仅阻止明确已知的广告域名（不过度拦截）
+    const blockedDomains = [
+      'doubleclick.net',
+      'googlesyndication.com',
+      'adnxs.com',
+      'taboola.com',
+      'outbrain.com'
+    ];
+    
+    // ✅ 只拦截明显的广告脚本（保留其他所有脚本）
     const originalAppendChild = Element.prototype.appendChild;
     Element.prototype.appendChild = function(child) {
       if (child.tagName === 'SCRIPT' && child.src) {
-        const isBlocked = BLOCKED_DOMAINS.some(d => child.src.includes(d));
-        if (isBlocked) {
-          console.log('[DramaOptimizer] Blocked script:', child.src);
-          return child;
+        const srcLower = child.src.toLowerCase();
+        const isAdScript = blockedDomains.some(d => srcLower.includes(d));
+        if (isAdScript) {
+          console.log('[DramaOptimizer] 🚫 Blocked ad script:', child.src.substring(0, 80));
+          return child; // 不添加到 DOM
         }
       }
-      if (child.tagName === 'LINK' && child.href) {
-        const isBlocked = BLOCKED_DOMAINS.some(d => child.href.includes(d));
-        if (isBlocked) {
-          console.log('[DramaOptimizer] Blocked link:', child.href);
-          return child;
-        }
-      }
+      
       return originalAppendChild.call(this, child);
     };
     
-    // Block iframes and lazy load images
+    // ✅ 延迟加载图片（不阻止，只是延后）
+    let imageLazyLoadEnabled = false;
+    
+    setTimeout(() => {
+      imageLazyLoadEnabled = true;
+      console.log('[DramaOptimizer] 🖼️ Image lazy loading activated (after 3s delay)');
+    }, 3000); // 等3秒让首屏内容先加载
+    
+    // ✅ 观察并优化图片加载（保守策略）
     const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          // 只拦截广告 iframe
           if (node.tagName === 'IFRAME' && node.src) {
-            const isBlocked = BLOCKED_DOMAINS.some(d => node.src.includes(d));
-            if (isBlocked) {
+            const isAdIframe = blockedDomains.some(d => node.src.includes(d)) ||
+                              (node.width < 10 && node.height < 10);
+            if (isAdIframe) {
               node.style.display = 'none';
               node.src = 'about:blank';
-              console.log('[DramaOptimizer] Blocked iframe');
+              console.log('[DramaOptimizer] 🚫 Blocked ad iframe:', node.src.substring(0, 80));
             }
           }
-          if (node.tagName === 'IMG' && !node.dataset.src) {
-            node.dataset.src = node.src;
-            node.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-          }
-          if (node.tagName === 'SCRIPT' && node.src) {
-            const isBlocked = BLOCKED_DOMAINS.some(d => node.src.includes(d));
-            if (isBlocked) {
-              node.remove();
-              console.log('[DramaOptimizer] Removed blocked script');
+          
+          // ✅ 图片懒加载（仅在激活后生效，且只针对非首屏大图）
+          if (node.tagName === 'IMG' && imageLazyLoadEnabled) {
+            if (!node.dataset.src && !node.dataset.lazyProcessed) {
+              const originalSrc = node.src;
+              // 只对大于 50x50 的图片进行懒加载（避免小图标受影响）
+              if (originalSrc && 
+                  originalSrc !== 'about:blank' && 
+                  !originalSrc.startsWith('data:') &&
+                  (node.naturalWidth > 50 || node.width > 50)) { // 尺寸检查
+                
+                node.dataset.lazyProcessed = 'true';
+                node.dataset.src = originalSrc;
+                
+                // 使用轻量级占位图
+                node.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg==';
+                
+                // 简单懒加载：进入视口时恢复原图
+                if ('IntersectionObserver' in window) {
+                  const imgObserver = new IntersectionObserver((entries, obs) => {
+                    entries.forEach(entry => {
+                      if (entry.isIntersecting) {
+                        const img = entry.target;
+                        if (img.dataset.src) {
+                          img.src = img.dataset.src;
+                        }
+                        obs.unobserve(img);
+                      }
+                    });
+                  }, { rootMargin: '200px' }); // 提前200px开始加载
+                  
+                  imgObserver.observe(node);
+                } else {
+                  // 降级：直接恢复原图
+                  node.src = originalSrc;
+                }
+              }
             }
           }
-        }
-      }
+        });
+      });
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    
+    // 延迟启动观察器（等页面基本结构加载完成）
+    setTimeout(() => {
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      console.log('[DramaOptimizer] ✅ DOM observer started');
+    }, 1000);
+    
+    console.log('[DramaOptimizer] ✅ Safe mode initialized (ads only blocked)');
   },
   
-  // Show enhanced loading overlay
+  // 显示加载进度遮罩
   showLoadingOverlay() {
-    if (document.getElementById('drama-loading-overlay')) return;
-    
-    const overlay = document.createElement('div');
-    overlay.id = 'drama-loading-overlay';
-    overlay.innerHTML = `
-      <div style="
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        z-index: 2147483646; font-family: 'Microsoft YaHei', sans-serif;
-      ">
-        <div style="
-          width: 60px; height: 60px; border: 4px solid #3a3d5b;
-          border-top: 4px solid #ff6768; border-radius: 50%;
-          animation: drama-spin 1s linear infinite;
-        "></div>
-        <div style="margin-top: 20px; color: #dcdce4; font-size: 16px;">正在加载，请稍候...</div>
-        <style>
-          @keyframes drama-spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      </div>
-    `;
-    document.body.appendChild(overlay);
+    // ✅ v2.3 FIX: Disabled - causing overlay display issues
+    // The loading overlay was covering the entire screen and not hiding properly
+    console.log('[DramaOptimizer] Loading overlay disabled (v2.3 fix)');
   },
   
   hideLoadingOverlay() {
@@ -207,61 +225,64 @@ const DramaSiteOptimizer = {
     }
   },
   
-  // Prefetch links on hover
+  // 预加载关键链接
   prefetchLinks() {
+    if (!this.isDramaSite()) return;
+    
     document.addEventListener('mouseover', (event) => {
       const anchor = event.target.closest('a');
-      if (anchor && anchor.href && anchor.href.startsWith('http') && !anchor.dataset.prefetched) {
-        anchor.dataset.prefetched = 'true';
-        // Use link prefetch instead of fetch
-        const link = document.createElement('link');
-        link.rel = 'prefetch';
-        link.href = anchor.href;
-        document.head.appendChild(link);
+      if (anchor && anchor.href && anchor.href.startsWith('http')) {
+        // 使用 fetch 预连接
+        if (!anchor.dataset.prefetched) {
+          anchor.dataset.prefetched = 'true';
+          fetch(anchor.href, { method: 'HEAD', mode: 'no-cors' }).catch(() => {});
+        }
       }
     }, { passive: true });
   },
   
   init() {
-    if (!this.isDramaSite()) return;
-    
     this.blockUnnecessaryResources();
     this.prefetchLinks();
     
-    // Wait for body to be available before showing overlay
-    if (document.body) {
-      this.showLoadingOverlay();
-    } else {
-      document.addEventListener('DOMContentLoaded', () => {
-        this.showLoadingOverlay();
-      });
-    }
-    
+    // 页面加载完成后隐藏遮罩
     window.addEventListener('load', () => {
-      setTimeout(() => this.hideLoadingOverlay(), 300);
+      setTimeout(() => this.hideLoadingOverlay(), 500);
     });
     
+    // 点击链接时显示遮罩
     document.addEventListener('click', (event) => {
+      if (!this.isDramaSite()) return;
+      
       const anchor = event.target.closest('a');
       if (anchor && anchor.href && anchor.href.startsWith('http')) {
         console.log('[DramaOptimizer] Link clicked:', anchor.href);
         this.showLoadingOverlay();
-        setTimeout(() => this.hideLoadingOverlay(), 8000);
+        
+        // 10秒后自动隐藏（超时保护）
+        setTimeout(() => this.hideLoadingOverlay(), 10000);
       }
     }, true);
   }
 };
 
-// Initialize drama site optimizer
-DramaSiteOptimizer.init();
+// ✅ v2.4 FIX: Completely disabled DramaSiteOptimizer
+// Reason: It was intercepting DOM operations and preventing movie1080.xyz from loading
+// The website itself loads in 1-15 seconds, so no optimization is needed
+console.log('[DramaOptimizer] ⛔ COMPLETELY DISABLED (v2.4 fix - site loads fast natively)');
+// DramaSiteOptimizer.init(); // ← DISABLED
 
-// --- Event Listeners ---
+// --- 事件监听 ---
+
+// 监听主进程推送的样式更新
 ipcRenderer.on('update-styles', (event, cssContent) => {
   applyStyles(cssContent);
 });
 
-// --- Proactive Parse Logic ---
+// --- 主动式解析逻辑 ---
+// 监听点击事件，主动发现换集行为
 document.addEventListener('click', (event) => {
+  // 爱奇艺换集检测
   if (window.location.hostname.includes('iqiyi.com')) {
     const anchor = event.target.closest('a');
     if (anchor && anchor.href && anchor.href.includes('iqiyi.com/v_')) {
@@ -269,6 +290,7 @@ document.addEventListener('click', (event) => {
       ipcRenderer.send('proactive-parse-request', anchor.href);
     }
   }
+  // 芒果 TV 换集检测
   if (window.location.hostname.includes('mgtv.com')) {
     const anchor = event.target.closest('a');
     if (anchor && anchor.href && anchor.href.includes('mgtv.com/b/')) {
@@ -278,23 +300,35 @@ document.addEventListener('click', (event) => {
   }
 }, true);
 
-// --- DOM Observer ---
-const domObserver = new MutationObserver(() => {
+
+// --- DOM 监控 ---
+
+// 使用MutationObserver作为备用方案，确保在DOM动态变化时也能应用样式
+const observer = new MutationObserver(() => {
+  // 当DOM变化时，我们不主动请求CSS，而是依赖主进程在'dom-ready'时推送。
+  // 此处仅用于确保<base>标签在极端情况下也能被添加。
   if (document.head && !document.head.querySelector(BASE_TAG_SELECTOR)) {
     const base = document.createElement('base');
     base.target = '_self';
     document.head.prepend(base);
   }
 });
-domObserver.observe(document, { childList: true, subtree: true });
 
-applyStyles('');
+// 启动对整个文档结构的监控
+observer.observe(document, { childList: true, subtree: true });
 
-// --- Optimized Injection Guardian ---
+// 页面初始加载时也尝试运行一次，以防万一
+applyStyles(''); // 传入空字符串以确保<base>标签被处理
+
+// --- 注入引擎 (Thread-Local Guardian) ---
+
 let currentGuardianInterval = null;
 let guardianStartTime = 0;
-let injectionSuccessful = false;
 
+/**
+ * 核心注入逻辑：在页面中寻找合适的容器并嵌入播放器
+ * @param {string} url - 播放器 URL
+ */
 function startInjectionGuardian(url) {
   if (currentGuardianInterval) {
     clearInterval(currentGuardianInterval);
@@ -302,13 +336,17 @@ function startInjectionGuardian(url) {
   }
 
   const iframeId = 'void-player-iframe';
+  const iframeSrc = url;
   guardianStartTime = Date.now();
-  injectionSuccessful = false;
 
+  // 使用高频 50ms 轮询前 5 秒，解决“瞬时秒入”问题
   currentGuardianInterval = setInterval(() => {
     const elapsed = Date.now() - guardianStartTime;
 
-    // Mute and hide native videos
+    // 如果超过 20 秒还没成功或页面已稳定，可以考虑放慢频率，但目前保持固定频率或直到成功
+    // 注入成功后我们依然保持监视，防止页面拉回原生播放器（芒果 TV 常见操作）
+
+    // 1. 静音并隐藏原生视频
     document.querySelectorAll('video').forEach(el => {
       try {
         el.muted = true;
@@ -318,39 +356,44 @@ function startInjectionGuardian(url) {
       } catch (e) { }
     });
 
-    // Clean nuisance elements
+    // 2. 清理干扰元素 (仅限非容器元素)
     const nuisanceSelectors = [
       '#playerPopup', '#vipCoversBox', 'div.iqp-player-vipmask',
       'div.iqp-player-paymask', 'div.iqp-player-loginmask',
       'div[class^=qy-header-login-pop]', '.covers_cloudCover__ILy8R',
-      '.iqp-player-guide', 'div.m-iqyGuide-layer',
+      '#videoContent > div.loading_loading__vzq4j', '.iqp-player-guide',
+      'div.m-iqyGuide-layer', '.loading_loading__vzq4j',
       '[class*="XPlayer_defaultCover__"]', '.iqp-controller',
-      '.plugin_ctrl_txp_bottom', '.txp_progress_bar_container',
-      '.txp_full_screen_pause-active', '.txp_center_controls',
-      '.mod_player_vip_ads', '.playlist-overlay-minipay',
-      '.qy-dialog-container', '.iqp-client-guide',
-      '[class*="shapedPopup_container"]', '[class*="floatPage_floatPage"]'
+      '.plugin_ctrl_txp_bottom', '.txp_progress_bar_container', '.txp_progress_list', '.txp_progress',
+      '.plugin_ctrl_txp_shadow', '.plugin_ctrl_txp_gradient_bottom',
+      '.txp_full_screen_pause-active', '.txp_full_screen_pause-active-mask', '.txp_full_screen_pause-active-player',
+      '.txp_center_controls', '.txp-layer-above-control', '.txp-layer-dynamic-above-control--on',
+      '.txp_btn_play', '.txp_btn', '.txp_popup-active', '.txp_popup_content', '.mod_player_vip_ads',
+      '.playlist-overlay-minipay',
+      '.browser-ver-tip', '.videopcg-browser-tips', '.qy-player-browser-tip', '.iqp-browser-tip',
+      '.m-pc-down', '.m-pc-client', '.qy-dialog-container', '.iqp-client-guide', '.qy-dialog-wrap',
+      '[class*="shapedPopup_container"]', '[class*="notSupportedDrm_drmTipsPopBox"]',
+      '[class*="floatPage_floatPage"]', '#tvgCashierPage', '[class*="popwin_fullCover"]'
     ];
     document.querySelectorAll(nuisanceSelectors.join(',')).forEach(el => {
       el.style.display = 'none';
       el.style.zIndex = '-9999';
     });
 
-    // Find injection target
+    // 3. 寻找注入目标 (核心提速点)
     let targetRef = document.querySelector('#mod_player') ||
       document.querySelector('.txp_player') ||
       document.querySelector('.txp_video_container');
 
     if (!targetRef) {
       const searchList = [
-        '#m-player-video-container', '.mgtv-video-container', '.mgtv-player-container',
-        '.mgtv-player-wrap', '#mgtv-player', '.mgtv-player',
-        '.iqp-player', '#flashbox', '.txp_player_video_wrap',
-        '#bilibili-player', '.player-wrap', '#player-container', '#player',
-        '.player-container', '.player-view', '.video-wrapper', 'video'
+        '#m-player-video-container', '.mgtv-video-container', '.mgtv-player-container', '.mgtv-player-wrap', '#mgtv-player', '.mgtv-player', '.mango-layer', '.mgtv-player-ad', // Mango TV Priority
+        '.mgtv-player-layers-container', '.mgtv-player-video-area', '.mgtv-player-video-box', '.mgtv-player-video-content', // Expanded Mango TV selectors
+        '.iqp-player', '#flashbox', '.txp_player_video_wrap', '#bilibili-player', '.player-wrap', '#player-container', '#player', '.player-container', '.player-view', '.video-wrapper', 'video'
       ];
       for (let s of searchList) {
         const el = document.querySelector(s);
+        // 只要元素存在且宽度超过 10px 即可注入
         if (el && el.getBoundingClientRect().width > 10) {
           targetRef = el;
           break;
@@ -359,21 +402,22 @@ function startInjectionGuardian(url) {
     }
 
     if (targetRef) {
+      const isMango = window.location.hostname.includes('mgtv.com');
+      const isTencent = window.location.hostname.includes('qq.com');
       const rect = targetRef.getBoundingClientRect();
 
+      // 统一使用漂浮策略，避免由于容器层级导致的显示问题
       if (rect.width > 50 && rect.height > 50) {
         let iframe = document.getElementById(iframeId);
-        if (!iframe || iframe.getAttribute('data-src') !== url) {
+        if (!iframe || iframe.getAttribute('data-src') !== iframeSrc) {
           if (iframe) iframe.remove();
           iframe = document.createElement('iframe');
           iframe.id = iframeId;
-          iframe.src = url;
-          iframe.setAttribute('data-src', url);
+          iframe.src = iframeSrc;
+          iframe.setAttribute('data-src', iframeSrc);
           iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
           iframe.allowFullscreen = true;
           document.body.appendChild(iframe);
-          injectionSuccessful = true;
-          console.log('[Guardian] Injection successful');
         }
 
         Object.assign(iframe.style, {
@@ -387,22 +431,21 @@ function startInjectionGuardian(url) {
           background: '#000'
         });
 
-        // Switch to slower interval after threshold
-        if (elapsed > GUARDIAN_SWITCH_THRESHOLD && !injectionSuccessful) {
+        // 成功注入后，如果是 Mango/Tencent 的某些顽固页面，5秒内降低频率，5秒后保持 250ms 监控位移
+        if (elapsed > 5000) {
           clearInterval(currentGuardianInterval);
-          currentGuardianInterval = setInterval(() => {
-            startInjectionGuardian(url);
-          }, GUARDIAN_SLOW_INTERVAL);
+          currentGuardianInterval = setInterval(() => startInjectionGuardian(url), 250);
         }
       }
     }
-  }, GUARDIAN_INITIAL_INTERVAL);
+  }, 50); // 50ms 超高频探测
 }
 
-// Handle embed video command
+// 核心：处理来自主进程的解析指令
 ipcRenderer.on('apply-embed-video', (event, url) => {
   console.log('[preload-web] >>> RECEIVED apply-embed-video signal:', url);
 
+  // 显式清理旧的播放器，确保即便 URL 相同，点击“解析”也要有动作（刷新）
   const oldIframe = document.getElementById('void-player-iframe');
   if (oldIframe) {
     oldIframe.remove();
@@ -412,7 +455,7 @@ ipcRenderer.on('apply-embed-video', (event, url) => {
   startInjectionGuardian(url);
 });
 
-// Proactive parse on video page load
+// 核心：页面加载的第一时间主动请求解析，解决“第一次注入慢”
 (() => {
   const url = window.location.href;
   const isVideoPage = url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/');
