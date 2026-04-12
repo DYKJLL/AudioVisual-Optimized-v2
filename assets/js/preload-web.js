@@ -227,7 +227,15 @@ const DramaSiteOptimizer = {
     
     this.blockUnnecessaryResources();
     this.prefetchLinks();
-    this.showLoadingOverlay();
+    
+    // Wait for body to be available before showing overlay
+    if (document.body) {
+      this.showLoadingOverlay();
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        this.showLoadingOverlay();
+      });
+    }
     
     window.addEventListener('load', () => {
       setTimeout(() => this.hideLoadingOverlay(), 300);

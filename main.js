@@ -93,7 +93,6 @@ const scrollbarCss = fs.readFileSync(path.join(__dirname, 'assets', 'css', 'view
 const HEALTH_CHECK_DURATION = 5000;
 const VIEW_REBUILD_THRESHOLD = 30000;
 const MAX_POOL_SIZE = 15;
-
 // --- Site Health Check ---
 async function checkSiteHealth(url) {
   return new Promise((resolve) => {
