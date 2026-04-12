@@ -526,6 +526,12 @@ function updateDOMForTheme(isSwitchingToDrama) {
 }
 
 function navigateForTheme(isSwitchingToDrama) {
+    const url = isSwitchingToDrama
+        ? (dramaSites.length > 0 ? dramaSites[0].value : '')
+        : platformSelect.value;
+
+    if (!url) return;
+
     if (isSwitchingToDrama) {
         loadingOverlay.classList.remove('hidden');
         showToast('正在加载影巢，请稍候...', 'info');
@@ -540,11 +546,6 @@ function navigateForTheme(isSwitchingToDrama) {
         '--av-accent-color': '#3a3d5b',
         '--av-highlight-color': '#ff6768'
     };
-    const url = isSwitchingToDrama
-        ? (dramaSites.length > 0 ? dramaSites[0].value : '')
-        : platformSelect.value;
-
-    if (!url) return;
 
     window.voidAPI.setViewVisibility(false);
     if (url === 'https://www.youku.com' && !isSwitchingToDrama) {
