@@ -5,7 +5,100 @@ const { app, screen, BrowserWindow, BrowserView, ipcMain, session, shell, dialog
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const https = require('https');
+const Store = require('electron-store');
+
+// ✅ === Settings Persistence System (v2.0) ===
+const settingsStore = new Store({
+  name: 'user-settings',
+  defaults: {
+    apiList: [],
+    dramaSites: [],
+    windowBounds: null,
+    lastPlatform: '',
+    themeMode: 'parsing'
+  },
+  encryptionKey: 'bfv2-secure-key-2024'
+});
+
+console.log(`[Settings] ✅ Store initialized at: ${settingsStore.path}`);
+
+// Settings IPC Handlers
+ipcMain.handle('settings:get', (event, key) => {
+  try {
+    return { success: true, value: settingsStore.get(key) };
+  } catch (error) {
+    console.error('[Settings] ❌ Get error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('settings:set', (event, key, value) => {
+  try {
+    settingsStore.set(key, value);
+    console.log(`[Settings] ✅ Saved ${key}:`, typeof value === 'object' ? `[${value.length} items]` : value);
+    
+    // Broadcast to all windows for real-time sync
+    BrowserWindow.getAllWindows().forEach(win => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('settings:changed', { key, value, timestamp: Date.now() });
+      }
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('[Settings] ❌ Set error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('settings:getAll', () => {
+  try {
+    const allSettings = {
+      apiList: settingsStore.get('apiList') || [],
+      dramaSites: settingsStore.get('dramaSites') || [],
+      windowBounds: settingsStore.get('windowBounds'),
+      lastPlatform: settingsStore.get('lastPlatform'),
+      themeMode: settingsStore.get('themeMode')
+    };
+    return { success: true, data: allSettings };
+  } catch (error) {
+    console.error('[Settings] ❌ GetAll error:', error);
+    return { success: false, error: error.message, data: { apiList: [], dramaSites: [] } };
+  }
+});
+
+ipcMain.handle('settings:reset', (event, key) => {
+  try {
+    if (key) {
+      settingsStore.reset(key);
+    } else {
+      settingsStore.clear();
+    }
+    console.log(`[Settings] Reset: ${key || 'all'}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('settings:export', async () => {
+  try {
+    const filePath = dialog.showSaveDialogSync(BrowserWindow.getFocusedWindow(), {
+      title: '导出设置',
+      defaultPath: 'audiovisual-settings.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    
+    if (filePath) {
+      fs.writeFileSync(filePath, JSON.stringify(settingsStore.store, null, 2));
+      return { success: true, path: filePath };
+    }
+    return { success: false };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+// === End Settings System ===
 
 // --- Debounce Utility ---
 function debounce(func, wait) {
@@ -23,7 +116,7 @@ function debounce(func, wait) {
 // --- Environment & Security Configuration ---
 
 // 1. Environment Detection
-const isDev = !app.isPackaged;
+const isDev = false; // Forced to false to disable auto DevTools
 
 // 2. Hardware Acceleration (Re-enabled for performance)
 // app.disableHardwareAcceleration(); // Commented out to fix resize flickering issue.
@@ -89,34 +182,71 @@ let isSidebarCollapsed = false;
 let currentThemeCss = `:root { --av-primary-bg: #1e1e2f; --av-accent-color: #3a3d5b; --av-highlight-color: #ff6768; }`;
 const scrollbarCss = fs.readFileSync(path.join(__dirname, 'assets', 'css', 'view-style.css'), 'utf8');
 
-// --- Constants ---
-const HEALTH_CHECK_DURATION = 5000;
-const VIEW_REBUILD_THRESHOLD = 30000;
-const MAX_POOL_SIZE = 15;
-// --- Site Health Check ---
-async function checkSiteHealth(url) {
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-    const req = https.request(url, { method: 'HEAD', timeout: HEALTH_CHECK_DURATION }, (res) => {
-      const latency = Date.now() - startTime;
-      resolve({ healthy: res.statusCode < 500, latency });
-    });
-    
-    req.on('error', () => {
-      resolve({ healthy: false, latency: HEALTH_CHECK_DURATION });
-    });
-    
-    req.on('timeout', () => {
-      req.destroy();
-      resolve({ healthy: false, latency: HEALTH_CHECK_DURATION });
-    });
-    
-    req.end();
-  });
+// ✅ === LRU BrowserView Pool (Memory Optimized v2.0) ===
+const MAX_VIEW_POOL_SIZE = 3; // Limit to 3 cached views (down from unlimited)
+const viewPool = new Map();
+let lruOrder = [];
+
+function getLRUKey() {
+  return lruOrder.length > 0 ? lruOrder[0] : null;
 }
 
-// --- Pre-rendering Logic ---
-const viewPool = new Map();
+function updateLRU(key) {
+  lruOrder = lruOrder.filter(k => k !== key);
+  lruOrder.push(key);
+}
+
+function evictLRU() {
+  const oldestKey = getLRUKey();
+  if (oldestKey && viewPool.has(oldestKey)) {
+    const oldView = viewPool.get(oldestKey);
+    
+    // ✅ 安全检查：确保 oldView 和 webContents 都存在
+    if (oldView && oldView.webContents && typeof oldView.webContents.isDestroyed === 'function') {
+      if (!oldView.webContents.isDestroyed()) {
+        console.log(`[ViewPool] 🗑️ Evicting LRU: ${oldestKey}`);
+        try {
+          oldView.webContents.destroy(); // Force destroy to free memory
+        } catch (err) {
+          console.error(`[ViewPool] ⚠️ Error destroying ${oldestKey}:`, err.message);
+        }
+      }
+    } else {
+      console.log(`[ViewPool] 🗑️ Skipping invalid view for: ${oldestKey}`);
+    }
+    
+    viewPool.delete(oldestKey);
+    lruOrder.shift();
+  }
+}
+
+function addToPool(url, viewInstance) {
+  // Auto-evict if at capacity
+  while (viewPool.size >= MAX_VIEW_POOL_SIZE) {
+    evictLRU();
+  }
+  
+  if (viewPool.has(url)) {
+    updateLRU(url);
+    return viewPool.get(url);
+  }
+  
+  viewPool.set(url, viewInstance);
+  updateLRU(url);
+  console.log(`[ViewPool] ➕ Added: ${url} (Size: ${viewPool.size}/${MAX_VIEW_POOL_SIZE})`);
+  return viewInstance;
+}
+
+function getPoolStats() {
+  return {
+    size: viewPool.size,
+    maxSize: MAX_VIEW_POOL_SIZE,
+    keys: Array.from(viewPool.keys()),
+    memoryEstimate: `${viewPool.size * 150}-${viewPool.size * 300}MB (estimated)`
+  };
+}
+// === End View Pool ===
+
 const platformHomePages = [
   'https://v.qq.com',
   'https://www.iqiyi.com',
@@ -133,48 +263,29 @@ const dramaSites = [
 
 let isPreloading = false;
 
-// --- View Pool Cleanup ---
-function cleanupViewPool() {
-  console.log('[ViewPool] Cleaning up stale views...');
-  
-  if (viewPool.size > MAX_POOL_SIZE) {
-    const entries = Array.from(viewPool.entries());
-    const toRemove = entries.slice(0, viewPool.size - MAX_POOL_SIZE);
-    
-    for (const [url, cachedView] of toRemove) {
-      if (cachedView && cachedView.webContents && !cachedView.webContents.isDestroyed()) {
-        cachedView.webContents.destroy();
-      }
-      viewPool.delete(url);
-      console.log(`[ViewPool] Removed stale view: ${url}`);
-    }
-  }
-}
-
-setInterval(cleanupViewPool, 60000);
-
 async function preloadAllSites() {
   if (isPreloading) return;
   isPreloading = true;
-  console.log('[Preload] Starting background pre-rendering...');
+  console.log('[Preload] ✨ Starting optimized pre-rendering (LRU mode)...');
   
-  const allSiteUrls = [...platformHomePages, ...dramaSites.map(s => s.url)];
+  // ✅ Only preload top 3 priority sites (not all 9)
+  const prioritySites = [
+    platformHomePages[0], // Tencent (default homepage)
+    ...dramaSites.slice(0, 2) // Top 2 drama sites
+  ].filter(Boolean);
   
-  for (let i = 0; i < allSiteUrls.length; i++) {
-    const url = allSiteUrls[i];
+  for (const url of prioritySites) {
+    // Stop if pool is already full
+    if (viewPool.size >= MAX_VIEW_POOL_SIZE) {
+      console.log('[Preload] Pool at capacity, stopping early.');
+      break;
+    }
+    
     if (viewPool.has(url)) continue;
     
     const siteConfig = dramaSites.find(s => s.url === url);
     const timeout = siteConfig ? siteConfig.timeout : 8000;
     const maxRetry = siteConfig ? siteConfig.retry : 1;
-    
-    // Health check before preloading
-    const health = await checkSiteHealth(url);
-    if (!health.healthy) {
-      console.log(`[Preload] Site ${url} not reachable (latency: ${health.latency}ms), skipping preload`);
-      continue;
-    }
-    console.log(`[Preload] Site ${url} reachable, latency: ${health.latency}ms`);
     
     let retryCount = 0;
     let loaded = false;
@@ -195,7 +306,7 @@ async function preloadAllSites() {
         
         loaded = await new Promise((resolve) => {
           const loadTimeout = setTimeout(() => {
-            console.log(`[Preload] Timeout (${timeout}ms) for ${url}, retry ${retryCount + 1}/${maxRetry}`);
+            console.log(`[Preload] ⏰ Timeout (${timeout}ms) for ${url}, retry ${retryCount + 1}/${maxRetry}`);
             resolve(false);
           }, timeout);
           
@@ -213,11 +324,10 @@ async function preloadAllSites() {
         });
         
         if (loaded) {
-          viewPool.set(url, ghostView);
-          console.log(`[Preload] Cached: ${url}`);
+          addToPool(url, ghostView); // ✅ Use LRU pool manager
         } else {
           if (!ghostView.webContents.isDestroyed()) {
-            ghostView.webContents.destroy();
+            ghostView.webContents.destroy(); // Immediate cleanup on failure
           }
           retryCount++;
         }
@@ -235,12 +345,12 @@ async function preloadAllSites() {
       console.log(`[Preload] Failed after ${maxRetry} retries: ${url}`);
     }
     
-    // Increased delay between preloads to reduce resource contention
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 200));
   }
   
   isPreloading = false;
-  console.log('[Preload] Background pre-rendering complete.');
+  console.log(`[Preload] ✅ Complete. ${getPoolStats().size}/${MAX_VIEW_POOL_SIZE} views cached.`);
+  console.log(`[Preload] 📊 Stats:`, getPoolStats());
 }
 
 function injectThemeCss(targetView) {
@@ -270,11 +380,6 @@ function injectThemeCss(targetView) {
   }
 }
 
-// Helper function to detect video pages
-function isVideoPage(url) {
-  return url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/');
-}
-
 function attachViewEvents(targetView) {
   if (!targetView || !targetView.webContents || targetView.webContents.isDestroyed()) {
     return;
@@ -285,7 +390,7 @@ function attachViewEvents(targetView) {
       injectThemeCss(targetView);
       if (view === targetView) {
         updateViewBounds(true);
-        updateZoomFactor(targetView);
+        updateZoomFactor(targetView); // Set initial zoom
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('load-finished');
         }
@@ -296,25 +401,28 @@ function attachViewEvents(targetView) {
   targetView.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
     if (isMainFrame && mainWindow && !mainWindow.isDestroyed() && view === targetView) {
       mainWindow.webContents.send('url-updated', url);
-      if (isVideoPage(url)) {
-        targetView.webContents.executeJavaScript(`
-          (() => {
-            const url = window.location.href;
-            const isVideoPage = url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/');
-            if (isVideoPage) {
-              ipcRenderer.send('proactive-parse-request', url);
-            }
-          })();
-        `);
-      }
+      // 核心：页面加载的第一时间主动请求解析，解决“第一次注入慢”
+      targetView.webContents.executeJavaScript(`
+        (() => {
+          const url = window.location.href;
+          const isVideoPage = url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/');
+          if (isVideoPage) {
+            ipcRenderer.send('proactive-parse-request', url);
+          }
+        })();
+      `);
     }
   });
 
   targetView.webContents.on('did-navigate', (event, url) => {
     if (view !== targetView) return;
     console.log('Page navigated to:', url);
-    if (isVideoPage(url) && mainWindow) {
+    if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
       console.log('[Main] Auto-triggering fast-parse for navigation to video page:', url);
+      mainWindow.webContents.send('fast-parse-url', url);
+    }
+    // 附加保障：did-navigate 时也补一次脉冲
+    if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
       mainWindow.webContents.send('fast-parse-url', url);
     }
     if (url.includes('iqiyi.com/v_') && url.includes('.html')) {
@@ -365,12 +473,15 @@ function updateViewBounds(isVisible = true) {
     view.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
   } else {
     const contentBounds = mainWindow.getContentBounds();
+    // 响应式布局计算逻辑，需与 style.css 保持一致
+    // 侧边栏宽度：clamp(200px, 18vw, 280px)
     let sidebarWidth = Math.max(200, Math.min(Math.floor(contentBounds.width * 0.18), 280));
     if (isSidebarCollapsed) {
       sidebarWidth = 0;
     }
     console.log(`[Main] updateViewBounds. isCollapsed: ${isSidebarCollapsed}, sidebarWidth: ${sidebarWidth}`);
 
+    // 顶部工具栏高度：clamp(50px, 7vh, 65px)
     const topBarHeight = Math.max(50, Math.min(Math.floor(contentBounds.height * 0.07), 65));
 
     if (isVisible) {
@@ -393,7 +504,7 @@ function updateZoomFactor(targetView) {
   const viewBounds = targetView.getBounds();
   const viewWidth = viewBounds.width;
   if (viewWidth > 0) {
-    const idealWidth = 1400;
+    const idealWidth = 1400; // Assumed ideal width for video websites
     const zoomFactor = viewWidth / idealWidth;
     targetView.webContents.setZoomFactor(zoomFactor);
     console.log(`[Zoom] View width is ${viewWidth}, setting zoom to ${zoomFactor.toFixed(2)}`);
@@ -450,65 +561,6 @@ function saveWindowState() {
   }
 }
 
-// --- Load URL with Health Check and Timeout Protection ---
-async function loadUrlWithProtection(targetView, url, siteConfig) {
-  const timeout = siteConfig ? siteConfig.timeout : 15000;
-  let loadTimeoutId = null;
-  let isResolved = false;
-  
-  // Health check for drama sites
-  if (siteConfig) {
-    const health = await checkSiteHealth(url);
-    if (!health.healthy) {
-      console.log(`[Load] Site ${url} health check failed, may have connection issues`);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('load-finished');
-      }
-      return false;
-    }
-    console.log(`[Load] Site ${url} health check passed, latency: ${health.latency}ms`);
-  }
-  
-  return new Promise((resolve) => {
-    loadTimeoutId = setTimeout(() => {
-      if (!isResolved) {
-        isResolved = true;
-        console.log(`[Load] Timeout for ${url}, sending load-finished`);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-        resolve(false);
-      }
-    }, timeout);
-    
-    targetView.webContents.once('did-finish-load', () => {
-      if (!isResolved) {
-        isResolved = true;
-        if (loadTimeoutId) clearTimeout(loadTimeoutId);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-        resolve(true);
-      }
-    });
-    
-    targetView.webContents.once('did-fail-load', (event, code, desc) => {
-      if (!isResolved) {
-        isResolved = true;
-        if (loadTimeoutId) clearTimeout(loadTimeoutId);
-        console.log(`[Load] Failed to load ${url}: ${desc}`);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-        resolve(false);
-      }
-    });
-    
-    targetView.webContents.loadURL(url);
-    console.log(`[Load] Loading URL: ${url} with timeout ${timeout}ms`);
-  });
-}
-
 function createWindow() {
   const windowState = getWindowState();
   if (windowState && windowState.isSidebarCollapsed !== undefined) {
@@ -527,7 +579,7 @@ function createWindow() {
     minHeight: 620,
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#11111a',
+    backgroundColor: '#11111a', // Solid base color matching our CSS
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -539,6 +591,7 @@ function createWindow() {
   };
 
   const { nativeTheme } = require('electron');
+  // Removed forced dark mode to allow following system theme
 
   mainWindow = new BrowserWindow(windowOptions);
 
@@ -555,6 +608,7 @@ function createWindow() {
     mainWindow.show();
     mainWindow.webContents.send('init-sidebar-state', isSidebarCollapsed);
 
+    // Attach view right away since we no longer have a manual fade-in
     if (view) {
       mainWindow.setBrowserView(view);
       updateViewBounds(true);
@@ -569,6 +623,8 @@ function createWindow() {
   mainWindow.setMenu(null);
 
   view = createNewBrowserView();
+  // mainWindow.setBrowserView(view); // Deferred to ready-to-show
+  // updateViewBounds(false); // Deferred to ready-to-show
 
   ipcMain.on('minimize-window', () => mainWindow.minimize());
   ipcMain.on('maximize-window', () => {
@@ -598,6 +654,7 @@ function createWindow() {
     }
   });
 
+  // ✅ === Navigation Handler (Stable v2.5) ===
   ipcMain.on('navigate', async (event, { url, isPlatformSwitch, themeVars, clearHistory }) => {
     if (themeVars) {
       currentThemeCss = `:root { ${Object.entries(themeVars).map(([key, value]) => `${key}: ${value}`).join('; ')} }`;
@@ -605,6 +662,7 @@ function createWindow() {
     console.log(`[Navigate] Received request for ${url}. Clear history: ${clearHistory}`);
     
     const siteConfig = dramaSites.find(s => s.url === url);
+    const isDramaSite = siteConfig !== undefined;
     
     if (view) {
       view.webContents.stop();
@@ -613,7 +671,7 @@ function createWindow() {
       
       const currentUrl = view.webContents.getURL();
       if (currentUrl && !viewPool.has(currentUrl)) {
-        viewPool.set(currentUrl, view);
+        addToPool(currentUrl, view);
       }
     }
 
@@ -625,7 +683,7 @@ function createWindow() {
     } else {
       console.log(`[Navigate] Creating a fresh BrowserView for ${url}.`);
       view = createNewBrowserView();
-      viewPool.set(url, view);
+      addToPool(url, view);
     }
 
     view.webContents.setAudioMuted(false);
@@ -638,9 +696,34 @@ function createWindow() {
     }
 
     if (!isFromCache) {
-      await loadUrlWithProtection(view, url, siteConfig);
+      const timeout = siteConfig ? siteConfig.timeout : 15000;
+      let loadTimeoutId = null;
       
-      if (isVideoPage(url) && mainWindow) {
+      loadTimeoutId = setTimeout(() => {
+        console.log(`[Navigate] Load timeout for ${url}, sending load-finished anyway`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+        }
+      }, timeout);
+      
+      view.webContents.once('did-finish-load', () => {
+        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+        }
+      });
+      
+      view.webContents.once('did-fail-load', () => {
+        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+        }
+      });
+      
+      view.webContents.loadURL(url);
+      console.log(`[Navigate] Loading URL: ${url} with timeout ${timeout}ms`);
+      
+      if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
         console.log('[Navigate] Extreme Speed: Early pulse for initial load:', url);
         mainWindow.webContents.send('fast-parse-url', url);
       }
@@ -655,10 +738,12 @@ function createWindow() {
     }
   });
 
+  // ✅ === Reset Module Handler (Stable v2.5) ===
   ipcMain.on('reset-module', (event, url) => {
     console.log(`[Reset Module] Resetting module to: ${url}`);
     
     const siteConfig = dramaSites.find(s => s.url === url);
+    const isHeavySite = url.includes('movie1080') || url.includes('monkey-flix');
     
     if (view) {
       view.webContents.stop();
@@ -672,7 +757,7 @@ function createWindow() {
       
       const currentUrl = view.webContents.getURL();
       if (currentUrl && !viewPool.has(currentUrl)) {
-        viewPool.set(currentUrl, view);
+        addToPool(currentUrl, view);
       }
     }
     
@@ -682,7 +767,7 @@ function createWindow() {
       isFromCache = true;
     } else {
       view = createNewBrowserView();
-      viewPool.set(url, view);
+      addToPool(url, view);
     }
     
     view.webContents.setAudioMuted(false);
@@ -690,13 +775,56 @@ function createWindow() {
     updateViewBounds(true);
     
     if (!isFromCache) {
-      loadUrlWithProtection(view, url, siteConfig);
+      const timeout = isHeavySite ? 30000 : (siteConfig ? siteConfig.timeout : 20000);
+      let loadTimeoutId = null;
+      let hasTimedOut = false;
+      
+      console.log(`[Reset Module] ⏱️ Timeout set to ${timeout/1000}s for: ${url} (heavy: ${isHeavySite})`);
+      
+      loadTimeoutId = setTimeout(() => {
+        hasTimedOut = true;
+        console.log(`[Reset Module] ⚠️ Load timeout reached (${timeout/1000}s) for ${url}`);
+        
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+          mainWindow.webContents.send('module-loading-timeout', { url, timeout });
+        }
+      }, timeout);
+      
+      view.webContents.once('did-finish-load', () => {
+        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+        
+        console.log(`[Reset Module] ✅ Page loaded: ${url} (timeout=${hasTimedOut ? 'YES' : 'NO'})`);
+        
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+          mainWindow.webContents.send('module-loading-complete', { url });
+        }
+        
+        injectThemeCss(view);
+        updateZoomFactor(view);
+      });
+      
+      view.webContents.once('did-fail-load', (event, code, desc) => {
+        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+        console.log(`[Reset Module] ❌ Failed to load: ${url} - ${desc}`);
+        
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+          mainWindow.webContents.send('module-loading-error', { url, error: desc });
+        }
+      });
+      
+      console.log(`[Reset Module] 🚀 Loading URL: ${url} (timeout: ${timeout}ms, heavy: ${isHeavySite})`);
+      view.webContents.loadURL(url);
     } else {
+      console.log(`[Reset Module] ♻️ Using cached view for: ${url}`);
       injectThemeCss(view);
       updateZoomFactor(view);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('url-updated', url);
         mainWindow.webContents.send('load-finished');
+        mainWindow.webContents.send('module-loading-complete', { url, fromCache: true });
       }
     }
     
@@ -732,9 +860,9 @@ function createWindow() {
 
   const handleResize = () => {
     const isVisible = view && view.getBounds().width > 0;
-    updateViewBounds(isVisible);
+    updateViewBounds(isVisible); // Update bounds immediately
     if (isVisible) {
-      debouncedUpdateZoom(view);
+      debouncedUpdateZoom(view); // Debounce zoom factor updates
     }
   };
 
@@ -829,14 +957,40 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Unconditionally preload sites on startup, regardless of session cache validity
+  // Run preloading in background without blocking
   setTimeout(() => {
     preloadAllSites().catch(err => console.error('[Preload] Background preload error:', err));
   }, 100);
 
+  // Initialize auto updater after window is ready
   initializeAutoUpdater();
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  // ✅ Clean up all cached BrowserViews to prevent memory leaks
+  console.log('[ViewPool] 🧹 Cleaning up all cached views on exit...');
+  viewPool.forEach((viewInstance, url) => {
+    // ✅ 安全检查：确保 viewInstance 和 webContents 都有效
+    if (viewInstance && viewInstance.webContents && typeof viewInstance.webContents.isDestroyed === 'function') {
+      if (!viewInstance.webContents.isDestroyed()) {
+        console.log(`[ViewPool] Destroying: ${url}`);
+        try {
+          viewInstance.webContents.destroy();
+        } catch (err) {
+          console.error(`[ViewPool] ⚠️ Error destroying ${url}:`, err.message);
+        }
+      }
+    } else {
+      console.log(`[ViewPool] Skipping invalid view: ${url}`);
+    }
+  });
+  viewPool.clear();
+  lruOrder = [];
+  console.log('[ViewPool] ✅ Cleanup complete.');
+  
+  if (process.platform !== 'darwin') app.quit();
+});
 
 ipcMain.on('open-external-link', (event, url) => {
   shell.openExternal(url);
@@ -856,15 +1010,19 @@ ipcMain.on('quit-and-install', () => {
 // --- Auto Updater ---
 const { autoUpdater } = require('electron-updater');
 
+// 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
+// 配置 autoUpdater
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 
+// 添加日志以便调试（如果 electron-log 可用）
 try {
   autoUpdater.logger = require('electron-log');
   autoUpdater.logger.transports.file.level = 'info';
 } catch (e) {
+  // electron-log 不可用，使用 console
   autoUpdater.logger = console;
 }
 
@@ -927,6 +1085,7 @@ function initializeAutoUpdater() {
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err);
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // 提供更友好的错误信息
       const errorMessage = err.message || err.toString();
       mainWindow.webContents.send('update-error', {
         message: errorMessage,
@@ -945,6 +1104,7 @@ function checkUpdate() {
     initializeAutoUpdater();
   }
 
+  // 清除之前的超时定时器
   if (updateCheckTimeout) {
     clearTimeout(updateCheckTimeout);
     updateCheckTimeout = null;
@@ -953,9 +1113,11 @@ function checkUpdate() {
   console.log('[AutoUpdater] Manually checking for updates...');
   console.log('[AutoUpdater] App is packed:', isAppPacked);
 
+  // 开发模式下的特殊处理
   if (!isAppPacked) {
     console.log('[AutoUpdater] Running in development mode, update check is disabled.');
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // 延迟一下让用户看到"检查中"状态
       setTimeout(() => {
         mainWindow.webContents.send('update-dev-mode', {
           message: '开发模式下无法检查更新。\n请使用打包后的应用程序进行更新检查。',
@@ -966,6 +1128,7 @@ function checkUpdate() {
     return;
   }
 
+  // 设置30秒超时，防止一直卡住
   updateCheckTimeout = setTimeout(() => {
     console.error('[AutoUpdater] Check timeout after 30 seconds');
     if (mainWindow && !mainWindow.isDestroyed()) {
