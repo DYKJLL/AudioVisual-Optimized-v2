@@ -109,13 +109,11 @@ const DramaSiteOptimizer = {
   blockUnnecessaryResources() {
     if (!this.isDramaSite()) return;
     
-    // 阻止广告和追踪脚本
     const blockedDomains = [
       'google-analytics', 'googletagmanager', 'facebook.com', 'doubleclick',
       'adservice', 'ads.', 'analytics.', 'tracking.', 'pixel.'
     ];
     
-    // 拦截 script 加载
     const originalAppendChild = Element.prototype.appendChild;
     Element.prototype.appendChild = function(child) {
       if (child.tagName === 'SCRIPT' && child.src) {
@@ -128,7 +126,6 @@ const DramaSiteOptimizer = {
       return originalAppendChild.call(this, child);
     };
     
-    // 拦截 iframe 加载（广告）
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
@@ -138,13 +135,6 @@ const DramaSiteOptimizer = {
               node.style.display = 'none';
               node.src = 'about:blank';
               console.log('[DramaOptimizer] Blocked iframe:', node.src);
-            }
-          }
-          // 延迟加载图片
-          if (node.tagName === 'IMG') {
-            if (!node.dataset.src) {
-              node.dataset.src = node.src;
-              node.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
             }
           }
         });
