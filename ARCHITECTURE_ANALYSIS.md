@@ -14,33 +14,7 @@
 
 ---
 
-## 目录结构
-
-```
-AudioVisual/
-├── main.js                    # 主进程入口 (961行)
-├── index.html                 # 主界面HTML (423行)
-├── package.json               # 项目配置
-├── assets/
-│   ├── css/
-│   │   ├── style.css          # 主样式 (1368行)
-│   │   ├── drama-style.css    # 影视模式主题 (137行)
-│   │   ├── view-style.css     # BrowserView样式注入 (22行)
-│   │   └── toastify.min.css   # Toast提示库
-│   ├── js/
-│   │   ├── renderer.js        # 渲染进程逻辑 (876行)
-│   │   ├── preload-ui.js      # UI预加载脚本 (48行)
-│   │   ├── preload-web.js     # 网页预加载脚本 (442行)
-│   │   └── toastify.min.js    # Toast库
-│   ├── fonts/                 # HarmonyOS字体
-│   └── images/                # 图标资源
-├── userData/                  # 运行时数据目录
-└── dist/                      # 打包输出目录
-```
-
----
-
-## 一、软件架构与技术栈
+## 一、软件架构与技术栈 (Technology Stack)
 
 ### 1.1 技术栈概览
 
@@ -102,7 +76,7 @@ flowchart TD
 
 ---
 
-## 二、核心业务逻辑
+## 二、核心业务逻辑 (Core Logic)
 
 ### 2.1 视频解析处理流程
 
@@ -151,7 +125,8 @@ const platformHomePages = [
 const dramaSites = [
   { url: 'https://monkey-flix.com/', name: '猴影工坊', timeout: 15000, retry: 2 },
   { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 20000, retry: 3 },
-  // ...
+  { url: 'https://www.letu.me/', name: '茉小影', timeout: 15000, retry: 2 },
+  { url: 'https://www.ncat21.com/', name: '网飞猫', timeout: 15000, retry: 2 }
 ];
 ```
 
@@ -219,7 +194,7 @@ graph LR
 
 ---
 
-## 三、Windows 11 适配情况
+## 三、Windows 11 适配情况 (Platform Specifics)
 
 ### 3.1 系统依赖检查
 
@@ -237,6 +212,11 @@ const widevinePath = `${os.homedir()}/AppData/Local/Google/Chrome/User Data/Wide
 // 用户数据路径（强制覆盖默认）
 app.setPath('userData', path.join(__dirname, 'userData'));
 ```
+
+**路径处理评估：**
+- 未发现硬编码的 `C:\Users\...` 路径
+- 使用 `os.homedir()` 动态获取用户目录
+- 兼容性良好
 
 ### 3.3 多线程/多进程模型
 
@@ -258,6 +238,11 @@ app.setPath('userData', path.join(__dirname, 'userData'));
 └─────────────────────────────────────────────────┘
 ```
 
+**UI 不卡顿机制：**
+- BrowserView 与主窗口分离渲染
+- 预渲染缓存减少首次加载时间
+- 异步 IPC 通信不阻塞主线程
+
 ### 3.4 窗口管理机制
 
 - **无边框窗口**：`frame: false, titleBarStyle: 'hidden'`
@@ -267,7 +252,7 @@ app.setPath('userData', path.join(__dirname, 'userData'));
 
 ---
 
-## 四、当前已知的缺陷与风险
+## 四、当前已知的缺陷与风险 (Bug & Risk)
 
 ### 4.1 性能瓶颈分析
 
@@ -290,12 +275,20 @@ blockUnnecessaryResources() {
     'adservice', 'ads.', 'analytics.', 'tracking.', 'pixel.'
   ];
   // 拦截脚本注入
+  Element.prototype.appendChild = function(child) { ... }
 }
 ```
 
 #### 问题2：注入守护进程高频轮询
 
 **现象：** 50ms 超高频探测可能造成CPU占用
+
+```javascript
+// preload-web.js
+currentGuardianInterval = setInterval(() => {
+  // 50ms 轮询注入逻辑
+}, 50);
+```
 
 **优化建议：**
 - 5秒后降低频率至 250ms（已实现）
@@ -308,6 +301,17 @@ blockUnnecessaryResources() {
 | ViewPool 无限增长 | 缓存View未设置上限 | 高 |
 | 事件监听器累积 | 每次导航可能重复绑定事件 | 中 |
 | iframe 未销毁 | 解析iframe可能残留 | 中 |
+
+**代码证据：**
+```javascript
+// ViewPool 只增不减
+if (viewPool.has(url)) {
+  view = viewPool.get(url);
+} else {
+  view = createNewBrowserView();
+  viewPool.set(url, view);  // 持续累积
+}
+```
 
 ### 4.3 代码质量问题
 
@@ -323,11 +327,21 @@ blockUnnecessaryResources() {
 | 风险 | 描述 | 建议 |
 |------|------|------|
 | webSecurity: false | 禁用Web安全策略 | 仅用于必要场景，应限定范围 |
+| contextIsolation: true | 已正确配置 | - |
+| nodeIntegration: false | 已正确配置 | - |
 | CSP删除 | 移除了内容安全策略头 | 可能导致XSS风险 |
+
+```javascript
+// 安全策略处理
+session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+  // 删除 CSP 头 - 可能存在风险
+  delete details.responseHeaders[headersToLower['content-security-policy']];
+});
+```
 
 ---
 
-## 五、运行环境配置
+## 五、运行环境配置 (Environment Requirements)
 
 ### 5.1 构建工具
 
@@ -360,7 +374,38 @@ blockUnnecessaryResources() {
 
 ---
 
-## 六、音视频处理流程图
+## 六、核心模块功能说明
+
+### 6.1 main.js 主进程模块
+
+| 函数 | 行数 | 功能 |
+|------|------|------|
+| `preloadAllSites()` | 109-187 | 后台预渲染所有站点 |
+| `createWindow()` | 397-711 | 创建主窗口和初始化 |
+| `attachViewEvents()` | 216-299 | 绑定BrowserView事件 |
+| `updateViewBounds()` | 301-331 | 更新视图边界 |
+| `initializeAutoUpdater()` | 820-888 | 初始化自动更新 |
+
+### 6.2 renderer.js 渲染进程模块
+
+| 函数 | 行数 | 功能 |
+|------|------|------|
+| `triggerParse()` | 202-235 | 触发视频解析 |
+| `navigateTo()` | 255-277 | 导航到指定URL |
+| `SettingsManager` | 134-186 | 配置持久化管理 |
+| `updateDOMForTheme()` | 515-539 | 主题切换 |
+
+### 6.3 preload-web.js 网页注入模块
+
+| 函数 | 行数 | 功能 |
+|------|------|------|
+| `applyStyles()` | 18-98 | 注入自定义CSS |
+| `startInjectionGuardian()` | 309-419 | 注入守护进程 |
+| `DramaSiteOptimizer` | 101-250 | 影视站点优化器 |
+
+---
+
+## 七、音视频处理流程图
 
 ```mermaid
 flowchart TB
@@ -393,13 +438,21 @@ flowchart TB
         M --> N[加载解析接口]
         N --> O[播放解析后视频]
     end
+    
+    subgraph 守护监控
+        O --> P[50ms轮询检测]
+        P --> Q{容器位置变化?}
+        Q -->|是| R[更新iframe位置]
+        Q -->|否| P
+        R --> P
+    end
 ```
 
 ---
 
-## 七、针对性的优化建议
+## 八、针对性的优化建议
 
-### 7.1 性能优化
+### 8.1 性能优化
 
 | 优化项 | 当前状态 | 建议方案 | 预期收益 |
 |--------|----------|----------|----------|
@@ -408,7 +461,7 @@ flowchart TB
 | 预渲染时机 | 启动后100ms | 延迟到窗口显示后 | 提升启动速度 |
 | 广告拦截 | 运行时拦截 | 预编译规则+Request拦截 | 提升页面加载速度 |
 
-### 7.2 代码质量优化
+### 8.2 代码质量优化
 
 ```javascript
 // 建议：提取常量配置
@@ -420,9 +473,27 @@ const CONFIG = {
   DEFAULT_TIMEOUT: 15000,
   CACHE_VALIDITY_HOURS: 24
 };
+
+// 建议：提取重复逻辑
+async function loadViewContent(view, url, options = {}) {
+  const { timeout = 15000, onTimeout, onLoad } = options;
+  // 统一的超时和加载处理逻辑
+}
 ```
 
-### 7.3 架构改进建议
+### 8.3 安全加固
+
+```javascript
+// 建议：限定 webSecurity 禁用范围
+webPreferences: {
+  webSecurity: url.startsWith('https://trusted-domain.com') ? false : true
+}
+
+// 建议：添加 CSP 白名单
+const allowedSources = ["'self'", "https://trusted-cdn.com"];
+```
+
+### 8.4 架构改进建议
 
 ```
 建议重构方向：
@@ -443,23 +514,37 @@ const CONFIG = {
 
 ---
 
-## 八、总结
+## 九、总结
 
 AudioVisual 是一个技术实现较为完整的 Electron 视频解析应用，其创新的 BrowserView 池化预渲染架构为多站点切换提供了良好的用户体验。
 
-**优势：**
-- BrowserView 池化架构实现快速站点切换
-- 主动式解析检测减少用户等待时间
-- 多平台兼容性好
-- 自动更新机制完善
+### 主要优势
 
-**待改进：**
-- ViewPool 内存管理需要上限控制
-- 注入守护进程可进一步优化
-- 部分硬编码配置需要外部化
-- 安全策略需要更精细的控制
+| 优势 | 说明 |
+|------|------|
+| BrowserView 池化架构 | 实现快速站点切换 |
+| 主动式解析检测 | 减少用户等待时间 |
+| 多平台兼容性 | 支持 Windows/macOS/Linux |
+| 自动更新机制 | 完善的版本更新流程 |
+
+### 主要问题
+
+| 问题 | 严重程度 |
+|------|----------|
+| ViewPool 内存泄漏风险 | 高 |
+| 注入守护进程高频轮询 | 中 |
+| 影巢等海外站点加载慢 | 中（物理限制） |
+| 硬编码配置 | 低 |
+
+### 下一步优化建议
+
+1. **内存管理**：设置 ViewPool 最大缓存数，实现 LRU 淘汰策略
+2. **性能优化**：采用自适应注入轮询频率
+3. **配置外部化**：将站点配置移至外部 JSON 文件
+4. **安全加固**：加强 CSP 策略，限定 webSecurity 禁用范围
 
 ---
 
-*报告生成时间：2026-04-11*
-*分析工具：MonkeyCode AI*
+**报告生成时间**: 2026-04-11  
+**分析工具**: MonkeyCode AI 架构分析引擎  
+**报告版本**: v1.0
