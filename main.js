@@ -111,57 +111,28 @@ async function preloadAllSites() {
   isPreloading = true;
   console.log('[Preload] Starting background pre-rendering...');
   
-  for (const url of platformHomePages) {
+  const allSiteUrls = [...platformHomePages, ...dramaSites.map(s => s.url)];
+  
+  for (const url of allSiteUrls) {
     if (viewPool.has(url)) continue;
     
-    try {
-      const ghostView = new BrowserView({
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          preload: path.join(__dirname, 'assets', 'js', 'preload-web.js'),
-          plugins: true,
-          webSecurity: false
-        }
-      });
-      ghostView.setBackgroundColor('#1e1e2f');
-      attachViewEvents(ghostView);
-      
-      const loaded = await new Promise((resolve) => {
-        const loadTimeout = setTimeout(() => {
-          console.log(`[Preload] Timeout for ${url}`);
-          resolve(false);
-        }, 8000);
-        
-        ghostView.webContents.on('did-finish-load', () => {
-          clearTimeout(loadTimeout);
-          console.log(`[Preload] Loaded: ${url}`);
-          resolve(true);
-        });
-        ghostView.webContents.on('did-fail-load', (event, code, desc) => {
-          clearTimeout(loadTimeout);
-          console.log(`[Preload] Failed: ${url} - ${desc}`);
-          resolve(false);
-        });
-        ghostView.webContents.loadURL(url);
-      });
-      
-      if (loaded) {
-        viewPool.set(url, ghostView);
-        console.log(`[Preload] Cached: ${url}`);
-      } else {
-        if (!ghostView.webContents.isDestroyed()) {
-          ghostView.webContents.destroy();
-        }
-      }
-    } catch (error) {
-      console.error(`[Preload] Error: ${url}`, error.message);
-    }
-  }
-  
-  isPreloading = false;
-  console.log('[Preload] Background pre-rendering complete.');
-}
+    const siteConfig = dramaSites.find(s => s.url === url);
+    const timeout = siteConfig ? siteConfig.timeout : 8000;
+    const maxRetry = siteConfig ? siteConfig.retry : 1;
+    
+    let retryCount = 0;
+    let loaded = false;
+    
+    while (retryCount < maxRetry && !loaded) {
+      try {
+        const ghostView = new BrowserView({
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            preload: path.join(__dirname, 'assets', 'js', 'preload-web.js'),
+            plugins: true,
+            webSecurity: false
+          }
         });
         ghostView.setBackgroundColor('#1e1e2f');
         attachViewEvents(ghostView);
