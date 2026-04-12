@@ -526,6 +526,11 @@ function updateDOMForTheme(isSwitchingToDrama) {
 }
 
 function navigateForTheme(isSwitchingToDrama) {
+    if (isSwitchingToDrama) {
+        loadingOverlay.classList.remove('hidden');
+        showToast('正在加载影巢，请稍候...', 'info');
+    }
+    
     const theme = isSwitchingToDrama ? {
         '--av-primary-bg': '#000000',
         '--av-accent-color': '#333333',
