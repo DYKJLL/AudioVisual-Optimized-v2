@@ -54,6 +54,25 @@ function applyStyles(cssContent) {
       pointer-events: auto !important;
     }
     
+    /* 影巢网站友情链接修复 - 白底黑字或深色字 */
+    .module-footer, .module-footer a, 
+    .links-footer, .links-footer a,
+    .friend-links, .friend-links a,
+    .footer-links, .footer-links a,
+    .bottom-links, .bottom-links a,
+    footer a, .footer a,
+    [class*="friendLink"] a, [class*="link"] a {
+      color: #333333 !important;
+      background-color: transparent !important;
+    }
+    
+    .module-footer a:hover, .links-footer a:hover,
+    .friend-links a:hover, .footer-links a:hover,
+    .bottom-links a:hover, footer a:hover, .footer a:hover,
+    [class*="friendLink"] a:hover, [class*="link"] a:hover {
+      color: #0066cc !important;
+    }
+    
     /* 隐藏所有已知视频网站的牛皮癣弹窗、广告和干扰图层 (通杀黑名单) */
     #playerPopup, 
     #vipCoversBox, 
