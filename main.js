@@ -98,18 +98,69 @@ const platformHomePages = [
   'https://www.mgtv.com'
 ];
 const dramaSites = [
-  { url: 'https://monkey-flix.com/', name: '猴影工坊', timeout: 15000, retry: 2 },
-  { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 20000, retry: 3 },
-  { url: 'https://www.letu.me/', name: '茉小影', timeout: 15000, retry: 2 },
-  { url: 'https://www.ncat21.com/', name: '网飞猫', timeout: 15000, retry: 2 }
+  { url: 'https://monkey-flix.com/', name: '猴影工坊', timeout: 10000, retry: 2 },
+  { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 10000, retry: 3 },
+  { url: 'https://www.letu.me/', name: '茉小影', timeout: 10000, retry: 2 },
+  { url: 'https://www.ncat21.com/', name: '网飞猫', timeout: 10000, retry: 2 }
 ];
 
 let isPreloading = false;
+const MAX_VIEW_POOL_SIZE = 10;
+
+async function loadSingleSite(url, timeout = 10000) {
+  const ghostView = new BrowserView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'assets', 'js', 'preload-web.js'),
+      plugins: true,
+      webSecurity: false
+    }
+  });
+  ghostView.setBackgroundColor('#1e1e2f');
+  attachViewEvents(ghostView);
+  
+  return new Promise((resolve) => {
+    const loadTimeout = setTimeout(() => {
+      console.log(`[Preload] Timeout (${timeout}ms) for ${url}`);
+      if (!ghostView.webContents.isDestroyed()) {
+        ghostView.webContents.destroy();
+      }
+      resolve(false);
+    }, timeout);
+    
+    ghostView.webContents.once('did-finish-load', () => {
+      clearTimeout(loadTimeout);
+      if (viewPool.size >= MAX_VIEW_POOL_SIZE) {
+        const oldestUrl = viewPool.keys().next().value;
+        const oldView = viewPool.get(oldestUrl);
+        if (oldView && !oldView.webContents.isDestroyed()) {
+          oldView.webContents.destroy();
+        }
+        viewPool.delete(oldestUrl);
+      }
+      viewPool.set(url, ghostView);
+      console.log(`[Preload] Cached: ${url}`);
+      resolve(true);
+    });
+    
+    ghostView.webContents.once('did-fail-load', (event, code, desc) => {
+      clearTimeout(loadTimeout);
+      if (!ghostView.webContents.isDestroyed()) {
+        ghostView.webContents.destroy();
+      }
+      console.log(`[Preload] Failed: ${url} - ${desc}`);
+      resolve(false);
+    });
+    
+    ghostView.webContents.loadURL(url);
+  });
+}
 
 async function preloadAllSites() {
   if (isPreloading) return;
   isPreloading = true;
-  console.log('[Preload] Starting background pre-rendering...');
+  console.log('[Preload] Starting serial pre-rendering...');
   
   const allSiteUrls = [...platformHomePages, ...dramaSites.map(s => s.url)];
   
@@ -117,73 +168,27 @@ async function preloadAllSites() {
     if (viewPool.has(url)) continue;
     
     const siteConfig = dramaSites.find(s => s.url === url);
-    const timeout = siteConfig ? siteConfig.timeout : 8000;
-    const maxRetry = siteConfig ? siteConfig.retry : 1;
+    const timeout = siteConfig ? siteConfig.timeout : 10000;
+    const maxRetry = siteConfig ? siteConfig.retry : 2;
     
-    let retryCount = 0;
     let loaded = false;
+    let retryCount = 0;
     
     while (retryCount < maxRetry && !loaded) {
-      try {
-        const ghostView = new BrowserView({
-          webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: false,
-            preload: path.join(__dirname, 'assets', 'js', 'preload-web.js'),
-            plugins: true,
-            webSecurity: false
-          }
-        });
-        ghostView.setBackgroundColor('#1e1e2f');
-        attachViewEvents(ghostView);
-        
-        loaded = await new Promise((resolve) => {
-          const loadTimeout = setTimeout(() => {
-            console.log(`[Preload] Timeout (${timeout}ms) for ${url}, retry ${retryCount + 1}/${maxRetry}`);
-            resolve(false);
-          }, timeout);
-          
-          ghostView.webContents.on('did-finish-load', () => {
-            clearTimeout(loadTimeout);
-            console.log(`[Preload] Successfully loaded: ${url}`);
-            resolve(true);
-          });
-          ghostView.webContents.on('did-fail-load', (event, code, desc) => {
-            clearTimeout(loadTimeout);
-            console.log(`[Preload] Failed to load ${url}: ${desc}`);
-            resolve(false);
-          });
-          ghostView.webContents.loadURL(url);
-        });
-        
-        if (loaded) {
-          viewPool.set(url, ghostView);
-          console.log(`[Preload] Cached: ${url}`);
-        } else {
-          if (!ghostView.webContents.isDestroyed()) {
-            ghostView.webContents.destroy();
-          }
-          retryCount++;
-        }
-      } catch (error) {
-        console.error(`[Preload] Error loading ${url}:`, error.message);
+      loaded = await loadSingleSite(url, timeout);
+      if (!loaded) {
         retryCount++;
-      }
-      
-      if (!loaded && retryCount < maxRetry) {
-        await new Promise(r => setTimeout(r, 1000));
+        if (retryCount < maxRetry) {
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
     }
     
-    if (!loaded) {
-      console.log(`[Preload] Failed after ${maxRetry} retries: ${url}`);
-    }
-    
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 300));
   }
   
   isPreloading = false;
-  console.log('[Preload] Background pre-rendering complete.');
+  console.log('[Preload] Serial pre-rendering complete.');
 }
 
 function injectThemeCss(targetView) {
@@ -571,79 +576,80 @@ ipcMain.on('navigate', async (event, { url, isPlatformSwitch, themeVars, clearHi
   });
 
   ipcMain.on('reset-module', (event, url) => {
-    console.log(`[Reset Module] Resetting module to: ${url}`);
+  console.log(`[Reset Module] IMMEDIATE reset to: ${url}`);
+  
+  if (view) {
+    view.webContents.stop();
+    view.webContents.setAudioMuted(true);
     
-    const siteConfig = dramaSites.find(s => s.url === url);
-    
-    if (view) {
-      view.webContents.stop();
-      view.webContents.setAudioMuted(true);
-      
-      if (view.webContents.clearHistory) {
+    if (view.webContents.clearHistory) {
+      try {
         view.webContents.clearHistory();
-      }
-      
-      mainWindow.removeBrowserView(view);
-      
-      const currentUrl = view.webContents.getURL();
-      if (currentUrl && !viewPool.has(currentUrl)) {
-        viewPool.set(currentUrl, view);
+      } catch (e) {
+        console.log('[Reset Module] clearHistory error:', e.message);
       }
     }
     
-    let isFromCache = false;
-    if (viewPool.has(url)) {
-      view = viewPool.get(url);
-      isFromCache = true;
-    } else {
-      view = createNewBrowserView();
-      viewPool.set(url, view);
+    mainWindow.removeBrowserView(view);
+    
+    const currentUrl = view.webContents.getURL();
+    if (currentUrl && !viewPool.has(currentUrl)) {
+      viewPool.set(currentUrl, view);
     }
-    
-    view.webContents.setAudioMuted(false);
-    mainWindow.setBrowserView(view);
-    updateViewBounds(true);
-    
-    if (!isFromCache) {
-      const timeout = siteConfig ? siteConfig.timeout : 15000;
-      let loadTimeoutId = null;
-      
-      loadTimeoutId = setTimeout(() => {
-        console.log(`[Reset Module] Load timeout for ${url}, sending load-finished`);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-      }, timeout);
-      
-      view.webContents.once('did-finish-load', () => {
-        if (loadTimeoutId) clearTimeout(loadTimeoutId);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-      });
-      
-      view.webContents.once('did-fail-load', () => {
-        if (loadTimeoutId) clearTimeout(loadTimeoutId);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-      });
-      
-      view.webContents.loadURL(url);
-    } else {
-      injectThemeCss(view);
-      updateZoomFactor(view);
+  }
+  
+  let isFromCache = false;
+  if (viewPool.has(url)) {
+    view = viewPool.get(url);
+    isFromCache = true;
+  } else {
+    view = createNewBrowserView();
+    viewPool.set(url, view);
+  }
+  
+  view.webContents.setAudioMuted(false);
+  mainWindow.setBrowserView(view);
+  updateViewBounds(true);
+  
+  if (!isFromCache) {
+    const loadTimeout = setTimeout(() => {
+      console.log(`[Reset Module] Load timeout for ${url}`);
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('url-updated', url);
         mainWindow.webContents.send('load-finished');
       }
-    }
+    }, 10000);
     
+    view.webContents.once('did-finish-load', () => {
+      clearTimeout(loadTimeout);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('load-finished');
+      }
+    });
+    
+    view.webContents.once('did-fail-load', (event, code, desc) => {
+      clearTimeout(loadTimeout);
+      console.log(`[Reset Module] Load failed: ${desc}`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('load-finished');
+      }
+    });
+    
+    view.webContents.loadURL(url);
+    console.log(`[Reset Module] Force loading: ${url}`);
+  } else {
+    injectThemeCss(view);
+    updateZoomFactor(view);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('url-updated', url);
-      mainWindow.webContents.send('nav-state-updated', { canGoBack: false, canGoForward: false });
+      mainWindow.webContents.send('load-finished');
     }
-  });
+  }
+  
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('url-updated', url);
+    mainWindow.webContents.send('nav-state-updated', { canGoBack: false, canGoForward: false });
+  }
+});
 
   ipcMain.on('go-back', () => {
     if (view && view.webContents.canGoBack()) view.webContents.goBack();
@@ -768,11 +774,12 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Unconditionally preload sites on startup, regardless of session cache validity
-  // Run preloading in background without blocking
-  setTimeout(() => {
-    preloadAllSites().catch(err => console.error('[Preload] Background preload error:', err));
-  }, 100);
+  // 延迟预加载到窗口完全显示后 5 秒，避免抢占 CPU
+  mainWindow.once('ready-to-show', () => {
+    setTimeout(() => {
+      preloadAllSites().catch(err => console.error('[Preload] Background preload error:', err));
+    }, 5000);
+  });
 
   // Initialize auto updater after window is ready
   initializeAutoUpdater();
