@@ -83,7 +83,12 @@ ipcMain.handle('settings:reset', (event, key) => {
 
 ipcMain.handle('settings:export', async () => {
   try {
-    const filePath = dialog.showSaveDialogSync(BrowserWindow.getFocusedWindow(), {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (!focusedWindow) {
+      return { success: false, error: 'No active window' };
+    }
+    
+    const filePath = dialog.showSaveDialogSync(focusedWindow, {
       title: '导出设置',
       defaultPath: 'audiovisual-settings.json',
       filters: [{ name: 'JSON', extensions: ['json'] }]
@@ -201,18 +206,17 @@ function evictLRU() {
   if (oldestKey && viewPool.has(oldestKey)) {
     const oldView = viewPool.get(oldestKey);
     
-    // ✅ 安全检查：确保 oldView 和 webContents 都存在
     if (oldView && oldView.webContents && typeof oldView.webContents.isDestroyed === 'function') {
       if (!oldView.webContents.isDestroyed()) {
-        console.log(`[ViewPool] 🗑️ Evicting LRU: ${oldestKey}`);
+        console.log(`[ViewPool] Evicting LRU: ${oldestKey}`);
         try {
-          oldView.webContents.destroy(); // Force destroy to free memory
+          oldView.webContents.destroy();
         } catch (err) {
-          console.error(`[ViewPool] ⚠️ Error destroying ${oldestKey}:`, err.message);
+          console.error(`[ViewPool] Error destroying ${oldestKey}:`, err.message);
         }
       }
     } else {
-      console.log(`[ViewPool] 🗑️ Skipping invalid view for: ${oldestKey}`);
+      console.log(`[ViewPool] Skipping invalid view for: ${oldestKey}`);
     }
     
     viewPool.delete(oldestKey);

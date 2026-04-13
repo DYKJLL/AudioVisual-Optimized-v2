@@ -210,8 +210,6 @@ const SettingsManager = {
   }
 };
 
-SettingsManager.load(); // Async load (now uses IPC)
-
 const platformSelect = document.getElementById('platform-select');
 const apiSelect = document.getElementById('api-select');
 
@@ -331,13 +329,6 @@ platformSelect.addEventListener('change', (event) => {
 quickPlatformSelect.addEventListener('change', () => {
     syncSelectors(quickPlatformSelect, platformSelect);
     platformSelect.dispatchEvent(new Event('change'));
-});
-
-apiSelect.addEventListener('change', () => {
-    syncSelectors(apiSelect, quickApiSelect);
-    if (platformSelect.value !== 'https://www.youku.com') {
-        triggerParse();
-    }
 });
 
 quickApiSelect.addEventListener('change', () => {
