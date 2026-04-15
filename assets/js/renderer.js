@@ -246,7 +246,6 @@ function triggerParse() {
         // 使用setTimeout确保UI更新后再执行嵌入，避免阻塞
         setTimeout(() => {
             window.voidAPI.embedVideo(finalUrl);
-            // 核心修复：1.5秒后强制隐藏加载层，防止遮挡解析结果
             setTimeout(() => {
                 loadingOverlay.classList.add('hidden');
             }, 1500);
@@ -340,7 +339,7 @@ goButton.addEventListener('click', () => {
     let url = urlInput.value.trim();
     if (url) {
         isCurrentlyParsing = false;
-        if (!url.startsWith('http')) url = 'https' + '://' + url;
+        if (!url.includes('://')) url = 'https://' + url;
         currentVideoUrl = url;
         navigateTo(url);
     }
@@ -674,7 +673,7 @@ tabButtons.forEach(btn => {
     input.addEventListener('input', () => updateLineCount(input, display));
 });
 
-saveSettings.addEventListener('click', () => {
+saveSettings.addEventListener('click', async () => {
     const newApis = SettingsManager.parseInput(parsingListInput.value);
     const newDramas = SettingsManager.parseInput(dramaListInput.value);
 
@@ -684,7 +683,7 @@ saveSettings.addEventListener('click', () => {
         return;
     }
 
-    if (SettingsManager.save(newApis, newDramas)) {
+    if (await SettingsManager.save(newApis, newDramas)) {
         showToast('设置已保存，正在刷新列表...', 'success');
         refreshDynamicUI();
         closeSettingsPage();

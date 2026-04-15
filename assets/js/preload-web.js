@@ -314,8 +314,9 @@ const observer = new MutationObserver(() => {
   }
 });
 
-// 启动对整个文档结构的监控
-observer.observe(document, { childList: true, subtree: true });
+// Monitor document body structure changes instead of entire document
+const targetNode = document.body || document.documentElement;
+observer.observe(targetNode, { childList: true, subtree: true });
 
 // 页面初始加载时也尝试运行一次，以防万一
 applyStyles(''); // 传入空字符串以确保<base>标签被处理
@@ -336,12 +337,16 @@ function startInjectionGuardian(url) {
   }
 
   const iframeId = 'void-player-iframe';
-  const iframeSrc = url;
-  guardianStartTime = Date.now();
+    const iframeSrc = url;
+    guardianStartTime = Date.now();
 
-  // 使用高频 50ms 轮询前 5 秒，解决“瞬时秒入”问题
-  currentGuardianInterval = setInterval(() => {
-    const elapsed = Date.now() - guardianStartTime;
+    // Use optimized 200ms polling for first 5 seconds, then reduce to 500ms
+    const initialInterval = 200;  // Optimized from 50ms
+    const switchTime = 5000;
+    const secondaryInterval = 500;  // Optimized from 250ms
+
+    currentGuardianInterval = setInterval(() => {
+        const elapsed = Date.now() - guardianStartTime;
 
     // 如果超过 20 秒还没成功或页面已稳定，可以考虑放慢频率，但目前保持固定频率或直到成功
     // 注入成功后我们依然保持监视，防止页面拉回原生播放器（芒果 TV 常见操作）
@@ -427,18 +432,18 @@ function startInjectionGuardian(url) {
           width: rect.width + 'px',
           height: rect.height + 'px',
           border: 'none',
-          zIndex: '2147483647',
+          zIndex: '99999',
           background: '#000'
         });
 
-        // 成功注入后，如果是 Mango/Tencent 的某些顽固页面，5秒内降低频率，5秒后保持 250ms 监控位移
-        if (elapsed > 5000) {
+        // After success injection, reduce frequency after 5 seconds
+        if (elapsed > switchTime) {
           clearInterval(currentGuardianInterval);
-          currentGuardianInterval = setInterval(() => startInjectionGuardian(url), 250);
+          currentGuardianInterval = setInterval(() => startInjectionGuardian(url), secondaryInterval);
         }
       }
     }
-  }, 50); // 50ms 超高频探测
+  }, initialInterval); // Optimized 200ms initial polling
 }
 
 // 核心：处理来自主进程的解析指令
