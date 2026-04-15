@@ -402,14 +402,39 @@ homeButton.addEventListener('click', () => {
         }
         
         const currentUrl = urlInput.value.trim();
-        const currentSite = dramaSites.find(site => currentUrl.startsWith(site.value));
-        const homeUrl = currentSite ? currentSite.value : (quickDramaSelect.value || dramaSites[0].value);
+        let homeUrl = null;
+        
+        if (currentUrl) {
+            for (const site of dramaSites) {
+                const siteUrl = site.url || site.value;
+                if (currentUrl.startsWith(siteUrl)) {
+                    homeUrl = siteUrl;
+                    console.log('[Home Button] Current site matched:', homeUrl, 'from', currentUrl);
+                    break;
+                }
+            }
+        }
+        
+        if (!homeUrl) {
+            homeUrl = quickDramaSelect.value;
+            if (!homeUrl && dramaSites.length > 0) {
+                const firstSite = dramaSites[0];
+                homeUrl = firstSite.url || firstSite.value;
+            }
+            console.log('[Home Button] Using fallback homeUrl:', homeUrl);
+        }
+        
+        if (!homeUrl) {
+            showToast('未找到可用的首页地址', 'error');
+            return;
+        }
         
         quickDramaSelect.value = homeUrl;
         urlInput.value = homeUrl;
         currentVideoUrl = homeUrl;
         loadingOverlay.classList.remove('hidden');
         
+        console.log('[Home Button] Navigating to:', homeUrl);
         window.voidAPI.resetModule(homeUrl);
     } else {
         const homeUrl = platformSelect.value;
@@ -762,7 +787,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dramaControlsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('.custom-drama-btn');
             if (btn && btn.dataset.url) {
-                const dramaSite = dramaSites.find(site => site.value === btn.dataset.url);
+                const dramaSite = dramaSites.find(site => {
+                    const siteUrl = site.url || site.value;
+                    return siteUrl === btn.dataset.url;
+                });
                 if (dramaSite) {
                     quickDramaSelect.value = btn.dataset.url;
                 }
