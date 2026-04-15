@@ -35,6 +35,7 @@
     "productName": "AudioVisual",
     "files": [
       "main.js",
+      "config.js",
       "index.html",
       "assets/**/*"
     ],
