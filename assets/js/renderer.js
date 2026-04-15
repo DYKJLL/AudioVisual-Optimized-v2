@@ -246,7 +246,6 @@ function triggerParse() {
         // 使用setTimeout确保UI更新后再执行嵌入，避免阻塞
         setTimeout(() => {
             window.voidAPI.embedVideo(finalUrl);
-            // 核心修复：1.5秒后强制隐藏加载层，防止遮挡解析结果
             setTimeout(() => {
                 loadingOverlay.classList.add('hidden');
             }, 1500);
@@ -315,13 +314,16 @@ platformSelect.addEventListener('change', (event) => {
     const selectedPlatform = event.target.value;
     isCurrentlyParsing = false;
     currentYoukuUrl = '';
-    
+
     if (selectedPlatform === 'https://www.youku.com') {
         youkuCustomPage.style.display = 'flex';
         urlInput.value = '';
+        currentVideoUrl = '';
         window.voidAPI.setViewVisibility(false);
     } else {
         youkuCustomPage.style.display = 'none';
+        urlInput.value = selectedPlatform;
+        currentVideoUrl = selectedPlatform;
         window.voidAPI.resetModule(selectedPlatform);
     }
 });
@@ -340,7 +342,7 @@ goButton.addEventListener('click', () => {
     let url = urlInput.value.trim();
     if (url) {
         isCurrentlyParsing = false;
-        if (!url.startsWith('http')) url = 'https' + '://' + url;
+        if (!url.includes('://')) url = 'https://' + url;
         currentVideoUrl = url;
         navigateTo(url);
     }
@@ -393,20 +395,51 @@ forwardButton.addEventListener('click', () => window.voidAPI.goForward());
 
 homeButton.addEventListener('click', () => {
     isCurrentlyParsing = false;
+    currentYoukuUrl = '';
+
+    // Show loading feedback
+    loadingOverlay.classList.remove('hidden');
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        mainContent.style.opacity = '0';
+        mainContent.style.transition = 'opacity 0.5s ease-out';
+    }
+
     const isDramaMode = container.classList.contains('drama-mode');
-    
+
     if (isDramaMode) {
         const homeUrl = dramaSites.length > 0 ? dramaSites[0].value : '';
         if (homeUrl) {
+            urlInput.value = homeUrl;
+            currentVideoUrl = homeUrl;
+            // Sync drama select
+            const dramaSite = dramaSites.find(s => homeUrl.startsWith(s.value));
+            if (dramaSite) {
+                quickDramaSelect.value = dramaSite.value;
+            }
             window.voidAPI.resetModule(homeUrl);
+        } else {
+            // Drama sites empty — show user feedback instead of silent failure
+            loadingOverlay.classList.add('hidden');
+            if (mainContent) {
+                mainContent.style.opacity = '1';
+            }
+            showToast('当前没有可用的影视站点，请在设置中添加。', 'error');
         }
     } else {
         const homeUrl = platformSelect.value;
+        // Hide youku custom page when going to any other platform
+        youkuCustomPage.style.display = 'none';
+
         if (homeUrl === 'https://www.youku.com') {
-            youkuCustomPage.style.display = 'flex';
-            window.voidAPI.setViewVisibility(false);
             urlInput.value = '';
+            currentVideoUrl = homeUrl;
+            window.voidAPI.setViewVisibility(false);
+            loadingOverlay.classList.add('hidden');
+            if (mainContent) mainContent.style.opacity = '1';
         } else {
+            urlInput.value = homeUrl;
+            currentVideoUrl = homeUrl;
             window.voidAPI.resetModule(homeUrl);
         }
     }
@@ -674,7 +707,7 @@ tabButtons.forEach(btn => {
     input.addEventListener('input', () => updateLineCount(input, display));
 });
 
-saveSettings.addEventListener('click', () => {
+saveSettings.addEventListener('click', async () => {
     const newApis = SettingsManager.parseInput(parsingListInput.value);
     const newDramas = SettingsManager.parseInput(dramaListInput.value);
 
@@ -684,7 +717,7 @@ saveSettings.addEventListener('click', () => {
         return;
     }
 
-    if (SettingsManager.save(newApis, newDramas)) {
+    if (await SettingsManager.save(newApis, newDramas)) {
         showToast('设置已保存，正在刷新列表...', 'success');
         refreshDynamicUI();
         closeSettingsPage();
