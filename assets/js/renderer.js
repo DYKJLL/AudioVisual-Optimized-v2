@@ -401,7 +401,9 @@ homeButton.addEventListener('click', () => {
             return;
         }
         
-        const homeUrl = quickDramaSelect.value || dramaSites[0].value;
+        const currentUrl = urlInput.value.trim();
+        const currentSite = dramaSites.find(site => currentUrl.startsWith(site.value));
+        const homeUrl = currentSite ? currentSite.value : (quickDramaSelect.value || dramaSites[0].value);
         
         quickDramaSelect.value = homeUrl;
         urlInput.value = homeUrl;
@@ -755,12 +757,16 @@ function refreshDramaSidebar() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    // ✅ Event Delegation for Drama Buttons (prevents listener accumulation)
     const dramaControlsContainer = document.querySelector('.drama-controls');
     if (dramaControlsContainer) {
         dramaControlsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('.custom-drama-btn');
             if (btn && btn.dataset.url) {
+                const dramaSite = dramaSites.find(site => site.value === btn.dataset.url);
+                if (dramaSite) {
+                    quickDramaSelect.value = btn.dataset.url;
+                }
+                loadingOverlay.classList.remove('hidden');
                 window.voidAPI.resetModule(btn.dataset.url);
             }
         });
