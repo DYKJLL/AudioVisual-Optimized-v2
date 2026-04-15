@@ -396,10 +396,19 @@ homeButton.addEventListener('click', () => {
     const isDramaMode = container.classList.contains('drama-mode');
     
     if (isDramaMode) {
-        const homeUrl = dramaSites.length > 0 ? dramaSites[0].value : '';
-        if (homeUrl) {
-            window.voidAPI.resetModule(homeUrl);
+        if (dramaSites.length === 0) {
+            showToast('剧迷模式未配置站点，请先在设置中添加', 'warning');
+            return;
         }
+        
+        const homeUrl = quickDramaSelect.value || dramaSites[0].value;
+        
+        quickDramaSelect.value = homeUrl;
+        urlInput.value = homeUrl;
+        currentVideoUrl = homeUrl;
+        loadingOverlay.classList.remove('hidden');
+        
+        window.voidAPI.resetModule(homeUrl);
     } else {
         const homeUrl = platformSelect.value;
         if (homeUrl === 'https://www.youku.com') {
@@ -407,6 +416,7 @@ homeButton.addEventListener('click', () => {
             window.voidAPI.setViewVisibility(false);
             urlInput.value = '';
         } else {
+            loadingOverlay.classList.remove('hidden');
             window.voidAPI.resetModule(homeUrl);
         }
     }
