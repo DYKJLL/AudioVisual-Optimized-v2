@@ -829,7 +829,6 @@ function createWindow() {
         }
 
         if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('url-updated', url);
             mainWindow.webContents.send('nav-state-updated', { canGoBack: false, canGoForward: false });
         }
     });
