@@ -27,14 +27,30 @@ html {
     height: 100%;
     font-family: var(--font-family);
     font-size: 16px;
-    background-color: var(--primary-bg);
+    background-color: transparent;
     color: var(--text-color);
     overflow: hidden;
+}
+
+/* Glassmorphism overlay */
+#glass-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(30, 30, 47, 0.3);
 }
 
 .container {
     display: flex;
     height: 100%;
+    position: relative;
+    z-index: 1;
     background-color: var(--primary-bg);
     border-radius: var(--border-radius);
 }
