@@ -1,5 +1,5 @@
 provider: generic
-url: https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/update/
+url: https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/
 events:
   - event: Update
     version: 1.2.5
