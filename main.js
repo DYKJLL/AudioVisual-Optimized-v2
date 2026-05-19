@@ -86,8 +86,8 @@ ipcMain.handle('settings:reset', (event, key) => {
 ipcMain.handle('get-version', () => {
   // 打包后显示完整版本（含V后缀）
   if (app.isPackaged) {
-    const baseVersion = app.getVersion();
-    return baseVersion.includes('-') ? baseVersion : `${baseVersion}-V6`;
+    // 显示版本固定为 1.2.5-V6（测试预览版）
+    return '1.2.5-V6';
   }
   return app.getVersion();
 });
