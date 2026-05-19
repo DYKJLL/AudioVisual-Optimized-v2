@@ -1099,12 +1099,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkUpdateButton = document.getElementById('check-update-button');
     const updateNotificationArea = document.getElementById('update-notification-area');
     const versionDisplay = document.getElementById('version-display');
+    const updateVersionDisplay = document.getElementById('update-version-display');
+    const previewVersion = document.getElementById('preview-version');
     let currentNotificationTimeout = null;
 
-    // 显示当前版本号
+    // 显示当前版本号（三处同步）
     window.voidAPI.getVersion().then(version => {
+        const v = `v${version}`;
         if (versionDisplay) {
-            versionDisplay.textContent = `v${version}`;
+            versionDisplay.textContent = v;
+        }
+        if (updateVersionDisplay) {
+            updateVersionDisplay.textContent = v;
+        }
+        if (previewVersion) {
+            previewVersion.textContent = v;
         }
     });
 

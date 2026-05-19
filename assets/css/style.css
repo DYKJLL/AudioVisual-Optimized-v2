@@ -1714,6 +1714,14 @@ textarea {
     border-radius: 5px;
 }
 
+.preview-version {
+    color: var(--text-secondary-color);
+    font-size: 7px;
+    text-align: center;
+    padding: 2px 0;
+    opacity: 0.6;
+}
+
 .preview-content {
     flex: 1;
     display: flex;
