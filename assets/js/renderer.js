@@ -270,6 +270,32 @@ function applyThemeColors(theme, glassEnabled) {
     }
   }
 
+  // Update preview elements
+  const previewSidebar = document.getElementById('preview-sidebar');
+  const previewTopbar = document.getElementById('preview-topbar');
+  const previewBtn = document.getElementById('preview-btn');
+  const previewLogo = document.querySelector('.preview-logo');
+  const previewVideo = document.getElementById('preview-video');
+  const previewSmBtn = document.querySelector('.preview-btn-sm');
+  if (previewSidebar) {
+    previewSidebar.style.background = theme.sidebarBg;
+    previewSidebar.style.backdropFilter = glassEnabled ? 'blur(20px) saturate(160%)' : '';
+    previewSidebar.style.webkitBackdropFilter = glassEnabled ? 'blur(20px) saturate(160%)' : '';
+  }
+  if (previewTopbar) {
+    previewTopbar.style.background = theme.sidebarBg;
+    previewTopbar.style.backdropFilter = glassEnabled ? 'blur(16px) saturate(150%)' : '';
+    previewTopbar.style.webkitBackdropFilter = glassEnabled ? 'blur(16px) saturate(150%)' : '';
+  }
+  if (previewBtn) {
+    previewBtn.style.background = theme.highlight;
+    previewBtn.style.color = '#fff';
+  }
+  if (previewLogo) previewLogo.style.color = theme.highlight;
+  if (previewVideo) previewVideo.style.background = theme.primaryBg;
+  if (previewSmBtn) previewSmBtn.style.background = `rgba(${parseInt(theme.text.slice(1,3),16)},${parseInt(theme.text.slice(3,5),16)},${parseInt(theme.text.slice(5,7),16)},0.08)`;
+  if (previewSmBtn) previewSmBtn.style.color = theme.textSecondary;
+
   // Update color picker inputs
   const keys = ['highlight', 'sidebarBg', 'primaryBg', 'text', 'textSecondary', 'accent'];
   keys.forEach(k => {
