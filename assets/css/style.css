@@ -1568,91 +1568,91 @@ textarea {
    ============================================= */
 
 .sidebar-preview {
-    margin: 12px 10px;
-    padding: 10px;
+    margin: 16px 12px;
+    padding: 14px 12px;
     background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
 }
 
 .preview-label {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-secondary-color);
     text-align: center;
-    margin-bottom: 8px;
-    letter-spacing: 1px;
+    margin-bottom: 12px;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
 }
 
 .preview-bar {
-    height: 18px;
+    height: 26px;
     background: var(--sidebar-bg);
-    border-radius: 4px;
+    border-radius: 5px;
     display: flex;
     align-items: center;
-    padding: 0 6px;
-    gap: 5px;
-    margin-bottom: 4px;
-    font-size: 7px;
+    padding: 0 10px;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 10px;
     color: var(--text-color);
     backdrop-filter: inherit;
     -webkit-backdrop-filter: inherit;
 }
 
 .preview-sidebar-icon {
-    font-size: 8px;
+    font-size: 12px;
     color: var(--highlight-color);
 }
 
 .preview-address {
-    font-size: 6px;
+    font-size: 9px;
     color: var(--text-secondary-color);
     opacity: 0.7;
 }
 
 .preview-body {
     display: flex;
-    height: 54px;
-    gap: 3px;
+    height: 80px;
+    gap: 5px;
 }
 
 .preview-sidebar {
     width: 38%;
     background: var(--sidebar-bg);
-    border-radius: 4px;
-    padding: 5px 4px;
+    border-radius: 6px;
+    padding: 8px 6px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 5px;
     backdrop-filter: inherit;
     -webkit-backdrop-filter: inherit;
 }
 
 .preview-logo {
-    font-size: 7px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--highlight-color);
     text-align: center;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .preview-btn {
     background: var(--highlight-color);
     color: #fff;
-    font-size: 5px;
+    font-size: 8px;
     font-weight: 700;
     text-align: center;
-    padding: 2px 4px;
-    border-radius: 3px;
+    padding: 4px 8px;
+    border-radius: 5px;
 }
 
 .preview-btn-sm {
     background: rgba(255,255,255,0.06);
     color: var(--text-secondary-color);
-    font-size: 5px;
+    font-size: 7px;
     text-align: center;
-    padding: 2px 4px;
-    border-radius: 3px;
+    padding: 3px 6px;
+    border-radius: 5px;
 }
 
 .preview-content {
