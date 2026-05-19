@@ -84,6 +84,11 @@ ipcMain.handle('settings:reset', (event, key) => {
 });
 
 ipcMain.handle('get-version', () => {
+  // 打包后显示完整版本（含V后缀）
+  if (app.isPackaged) {
+    const baseVersion = app.getVersion();
+    return baseVersion.includes('-') ? baseVersion : `${baseVersion}-V5`;
+  }
   return app.getVersion();
 });
 
@@ -1008,10 +1013,10 @@ const { autoUpdater } = require('electron-updater');
 // 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
-// 使用 jsDelivr CDN 加速国内更新检查（generic provider）
+// 使用 GitHub raw CDN 供国内检查更新（generic provider）
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/'
+  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/'
 });
 
 // 配置 autoUpdater
