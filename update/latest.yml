@@ -1,6 +1,8 @@
- (devent: Updates
 provider: generic
-url: https://cdn.jsdelivr.net/gh/DYKJJLL/AudioVisual-Optimized-v2@master/update
-ivent: 12.5.0-y64
-hash: c0baf6e4d76405168206bc178a96625b31362a2d
-hversion: 1.2.5V5
+url: https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/update/
+events:
+  - event: Update
+    version: 1.2.5
+    path: AudioVisual-1.2.5-V5-x64.exe
+    sha2: 6adef722cb6a55c301025e475c0a05e35dac6ec50338b9af3e638383378cf063
+    releaseDate: '2026-05-20T00:00:00Z'
