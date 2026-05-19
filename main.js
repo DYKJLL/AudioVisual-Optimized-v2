@@ -83,6 +83,10 @@ ipcMain.handle('settings:reset', (event, key) => {
   }
 });
 
+ipcMain.handle('get-version', () => {
+  return app.getVersion();
+});
+
 ipcMain.handle('settings:export', async () => {
   try {
     const focusedWindow = BrowserWindow.getFocusedWindow();

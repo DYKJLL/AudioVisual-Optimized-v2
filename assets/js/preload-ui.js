@@ -60,5 +60,8 @@ contextBridge.exposeInMainWorld('voidAPI', {
   onModuleLoadingStart: (callback) => ipcRenderer.on('module-loading-start', (event, data) => callback(data)),
   onModuleLoadingComplete: (callback) => ipcRenderer.on('module-loading-complete', (event, data) => callback(data)),
   onModuleLoadingTimeout: (callback) => ipcRenderer.on('module-loading-timeout', (event, data) => callback(data)),
-  onModuleLoadingError: (callback) => ipcRenderer.on('module-loading-error', (event, data) => callback(data))
+  onModuleLoadingError: (callback) => ipcRenderer.on('module-loading-error', (event, data) => callback(data)),
+
+  // App version
+  getVersion: () => ipcRenderer.invoke('get-version')
 });

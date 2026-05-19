@@ -42,6 +42,9 @@ const dramaListInput = document.getElementById('drama-list-input');
 let currentVideoUrl = '';
 let isCurrentlyParsing = false;
 let currentYoukuUrl = '';
+const DEBUG = false; // 生产环境禁用所有 console 输出
+let lastFastParseUrl = '';    // 去重：记录上一次触发 parse 的 URL
+let lastFastParseTime = 0;   // 去重：记录上一次触发时间戳
 
 // --- UI 工具 ---
 function showToast(message, type = 'info') {
@@ -134,13 +137,13 @@ let dramaSites = [...DEFAULT_DRAMA_SITES];
 const SettingsManager = {
   async load() {
     try {
-      console.log('[Settings] Loading from persistent storage...');
+      if (DEBUG) console.log('[Settings] Loading from persistent storage...');
       const result = await window.voidAPI.getAllSettings();
       
       if (result.success && result.data) {
         if (result.data.apiList && result.data.apiList.length > 0) {
           apiList = result.data.apiList;
-          console.log(`[Settings] ✅ Loaded ${apiList.length} API endpoints`);
+          if (DEBUG) console.log(`[Settings] ✅ Loaded ${apiList.length} API endpoints`);
         }
         
         if (result.data.dramaSites && result.data.dramaSites.length > 0) {
@@ -148,17 +151,17 @@ const SettingsManager = {
           
           // Migration: Remove old netflixgc.com entries
           if (dramaSites.some(d => d.value?.includes('netflixgc.com'))) {
-            console.log('[Settings] Migrating old drama sites...');
+            if (DEBUG) console.log('[Settings] Migrating old drama sites...');
             dramaSites = [...DEFAULT_DRAMA_SITES];
             await this.save(apiList, dramaSites);
           }
-          console.log(`[Settings] ✅ Loaded ${dramaSites.length} drama sites`);
+          if (DEBUG) console.log(`[Settings] ✅ Loaded ${dramaSites.length} drama sites`);
         }
       } else {
-        console.warn('[Settings] Using defaults (no saved data or load failed)');
+        if (DEBUG) console.warn('[Settings] Using defaults (no saved data or load failed)');
       }
     } catch (error) {
-      console.error('[Settings] ❌ Failed to load:', error);
+      if (DEBUG) console.error('[Settings] ❌ Failed to load:', error);
     }
   },
   
@@ -170,13 +173,13 @@ const SettingsManager = {
       if (apiResult.success && dramaResult.success) {
         apiList = newApis;
         dramaSites = newDramas;
-        console.log('[Settings] ✅ All settings saved successfully');
+        if (DEBUG) console.log('[Settings] ✅ All settings saved successfully');
         return true;
       } else {
         throw new Error('Failed to save one or more settings');
       }
     } catch (error) {
-      console.error('[Settings] ❌ Save failed:', error);
+      if (DEBUG) console.error('[Settings] ❌ Save failed:', error);
       return false;
     }
   },
@@ -189,9 +192,9 @@ const SettingsManager = {
       dramaSites = [...DEFAULT_DRAMA_SITES];
       // Re-save defaults
       await this.save(apiList, dramaSites);
-      console.log('[Settings] ✅ Reset to defaults');
+      if (DEBUG) console.log('[Settings] ✅ Reset to defaults');
     } catch (error) {
-      console.error('[Settings] ❌ Reset failed:', error);
+      if (DEBUG) console.error('[Settings] ❌ Reset failed:', error);
     }
   },
   
@@ -223,12 +226,12 @@ function populateSelect(selectElement, items) {
 }
 
 function triggerParse() {
-    console.log(`[Renderer] Attempting to trigger parse. isCurrentlyParsing: ${isCurrentlyParsing}, currentVideoUrl: ${currentVideoUrl}`);
+    if (DEBUG) console.log(`[Renderer] Attempting to trigger parse. isCurrentlyParsing: ${isCurrentlyParsing}, currentVideoUrl: ${currentVideoUrl}`);
 
     // Detect if the user is trying to parse the platform's homepage
     const isHomepage = platforms.some(p => currentVideoUrl === p.value || currentVideoUrl === p.value + '/');
     if (isHomepage) {
-        console.warn('[Renderer] Cannot parse platform homepage.');
+        if (DEBUG) console.warn('[Renderer] Cannot parse platform homepage.');
         showToast('当前页面为平台首页，请选择具体的视频后再点击解析。', 'error');
         isCurrentlyParsing = false;
         loadingOverlay.classList.add('hidden');
@@ -241,7 +244,7 @@ function triggerParse() {
 
         const selectedApiUrl = apiSelect.value;
         const finalUrl = selectedApiUrl + currentVideoUrl;
-        console.log(`[Renderer] Final Parse URL: ${finalUrl}`);
+        if (DEBUG) console.log(`[Renderer] Final Parse URL: ${finalUrl}`);
 
         // 使用setTimeout确保UI更新后再执行嵌入，避免阻塞
         setTimeout(() => {
@@ -252,7 +255,7 @@ function triggerParse() {
             }, 1500);
         }, 50);
     } else {
-        console.warn('[Renderer] Cannot trigger parse: missing internal state or URL.');
+        if (DEBUG) console.warn('[Renderer] Cannot trigger parse: missing internal state or URL.');
         loadingOverlay.classList.add('hidden');
     }
 }
@@ -372,7 +375,7 @@ apiSelect.addEventListener('change', () => {
 sidebarToggleButton.addEventListener('click', () => {
     // Force direct class manipulation for robustness
     const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
-    console.log('[Renderer] Sidebar toggle. isCollapsed:', isCollapsed);
+    if (DEBUG) console.log('[Renderer] Sidebar toggle. isCollapsed:', isCollapsed);
     requestAnimationFrame(() => window.voidAPI.toggleSidebar(isCollapsed));
 });
 
@@ -409,7 +412,7 @@ homeButton.addEventListener('click', () => {
                 const siteUrl = site.url || site.value;
                 if (currentUrl.startsWith(siteUrl)) {
                     homeUrl = siteUrl;
-                    console.log('[Home Button] Current site matched:', homeUrl, 'from', currentUrl);
+                    if (DEBUG) console.log('[Home Button] Current site matched:', homeUrl, 'from', currentUrl);
                     break;
                 }
             }
@@ -421,7 +424,7 @@ homeButton.addEventListener('click', () => {
                 const firstSite = dramaSites[0];
                 homeUrl = firstSite.url || firstSite.value;
             }
-            console.log('[Home Button] Using fallback homeUrl:', homeUrl);
+            if (DEBUG) console.log('[Home Button] Using fallback homeUrl:', homeUrl);
         }
         
         if (!homeUrl) {
@@ -434,7 +437,7 @@ homeButton.addEventListener('click', () => {
         currentVideoUrl = homeUrl;
         loadingOverlay.classList.remove('hidden');
         
-        console.log('[Home Button] Navigating to:', homeUrl);
+        if (DEBUG) console.log('[Home Button] Navigating to:', homeUrl);
         window.voidAPI.resetModule(homeUrl);
     } else {
         const homeUrl = platformSelect.value;
@@ -471,7 +474,7 @@ window.voidAPI.onUrlUpdate((url) => {
         if (url.includes('iqiyi.com/v_') && url.includes('.html') &&
             previousVideoUrl && previousVideoUrl !== url &&
             platformSelect.value === 'https://www.iqiyi.com') {
-            console.log('iQiyi episode changed, auto-parsing:', url);
+            if (DEBUG) console.log('iQiyi episode changed, auto-parsing:', url);
             isCurrentlyParsing = true;
             triggerParse();
         }
@@ -480,7 +483,7 @@ window.voidAPI.onUrlUpdate((url) => {
         if (url.includes('v.qq.com/x/cover/') &&
             previousVideoUrl && previousVideoUrl !== url &&
             platformSelect.value === 'https://v.qq.com') {
-            console.log('Tencent Video episode changed, auto-parsing:', url);
+            if (DEBUG) console.log('Tencent Video episode changed, auto-parsing:', url);
             isCurrentlyParsing = true;
             triggerParse();
         }
@@ -489,7 +492,7 @@ window.voidAPI.onUrlUpdate((url) => {
         if (url.includes('mgtv.com/b/') &&
             previousVideoUrl && previousVideoUrl !== url &&
             platformSelect.value === 'https://www.mgtv.com') {
-            console.log('Mango TV episode changed, auto-parsing:', url);
+            if (DEBUG) console.log('Mango TV episode changed, auto-parsing:', url);
             isCurrentlyParsing = true;
             triggerParse();
         }
@@ -499,7 +502,7 @@ window.voidAPI.onUrlUpdate((url) => {
             url.includes('bilibili.com/video/') && (url.includes('?p=') || url.includes('&p='))) &&
             previousVideoUrl && previousVideoUrl !== url &&
             platformSelect.value === 'https://www.bilibili.com') {
-            console.log('Bilibili episode changed, auto-parsing:', url);
+            if (DEBUG) console.log('Bilibili episode changed, auto-parsing:', url);
             isCurrentlyParsing = true;
             triggerParse();
         }
@@ -522,16 +525,23 @@ window.voidAPI.onLoadFinished(() => {
 
 // 处理主动探测到的视频 URL，实现零延迟注入
 window.voidAPI.onFastParseUrl((url) => {
-    if (url) {
-        currentVideoUrl = url;
-        urlInput.value = url;
-        isCurrentlyParsing = true;
-        triggerParse();
+    if (!url) return;
+    const now = Date.now();
+    // 500ms 软防抖：同 URL 在 500ms 内重复触发则忽略
+    if (url === lastFastParseUrl && now - lastFastParseTime < 500) {
+        if (DEBUG) console.log('[Renderer] [Dedupe] 忽略 500ms 内重复 fast-parse-url:', url);
+        return;
     }
+    lastFastParseUrl = url;
+    lastFastParseTime = now;
+    currentVideoUrl = url;
+    urlInput.value = url;
+    isCurrentlyParsing = true;
+    triggerParse();
 });
 
 window.voidAPI.onInitSidebarState((isCollapsed) => {
-    console.log('[Renderer] Received initial sidebar state:', isCollapsed);
+    if (DEBUG) console.log('[Renderer] Received initial sidebar state:', isCollapsed);
     if (isCollapsed) {
         document.body.classList.add('sidebar-collapsed');
     } else {
@@ -544,7 +554,7 @@ async function initialize() {
   // ✅ CRITICAL: Wait for settings to load before UI init
   await SettingsManager.load();
   
-  console.log('[Init] Settings loaded, initializing UI...');
+  if (DEBUG) console.log('[Init] Settings loaded, initializing UI...');
   
   // Initial UI state setup
   dramaControls.style.display = 'none';
@@ -798,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.voidAPI.resetModule(btn.dataset.url);
             }
         });
-        console.log('[Event] ✅ Drama button delegation attached');
+        if (DEBUG) console.log('[Event] ✅ Drama button delegation attached');
     }
     
     const externalLink = document.querySelector('.footer a');
@@ -811,7 +821,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const checkUpdateButton = document.getElementById('check-update-button');
     const updateNotificationArea = document.getElementById('update-notification-area');
+    const versionDisplay = document.getElementById('version-display');
     let currentNotificationTimeout = null;
+
+    // 显示当前版本号
+    window.voidAPI.getVersion().then(version => {
+        if (versionDisplay) {
+            versionDisplay.textContent = `v${version}`;
+        }
+    });
 
     function showUpdateNotification(message, type = 'info', persistent = false) {
         if (currentNotificationTimeout) {
@@ -821,11 +839,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateNotificationArea.innerHTML = `<div style="padding: 8px; border-radius: 4px; font-size: 12px; text-align: center; background: ${type === 'error' ? '#ff6768' : type === 'success' ? 'var(--highlight-color)' : 'var(--accent-color)'}; color: ${type === 'success' ? 'var(--primary-bg)' : 'white'}; word-wrap: break-word; line-height: 1.3;">${message}</div>`;
 
-        if (!persistent && type !== 'success' && type !== 'available') {
+        if (!persistent) {
             currentNotificationTimeout = setTimeout(() => {
                 updateNotificationArea.innerHTML = '';
                 currentNotificationTimeout = null;
-            }, 8000);
+            }, 2000);
         }
     }
 
@@ -837,12 +855,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 新增：处理开始检查更新的事件
     window.voidAPI.onUpdateChecking(() => {
-        console.log('[Renderer] Checking for updates...');
+        if (DEBUG) console.log('[Renderer] Checking for updates...');
         showUpdateNotification("正在检查更新...", 'info', true);
     });
 
     window.voidAPI.onUpdateAvailable((info) => {
-        console.log('[Renderer] Update available:', info.version);
+        if (DEBUG) console.log('[Renderer] Update available:', info.version);
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
         showUpdateNotification(`🎉 发现新版本 ${info.version}！点击此处开始下载。`, 'available', true);
@@ -860,7 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.voidAPI.onUpdateNotAvailable(() => {
-        console.log('[Renderer] Already on latest version');
+        if (DEBUG) console.log('[Renderer] Already on latest version');
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
         showUpdateNotification("✅ 已是最新版本", 'success', false);
@@ -875,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.voidAPI.onUpdateDownloaded(() => {
-        console.log('[Renderer] Update downloaded');
+        if (DEBUG) console.log('[Renderer] Update downloaded');
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
         showUpdateNotification("✅ 更新已下载完成！点击此处重启以应用。", 'success', true);
@@ -887,7 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.voidAPI.onUpdateError((err) => {
-        console.error('[Renderer] Update error:', err);
+        if (DEBUG) console.error('[Renderer] Update error:', err);
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
         
@@ -909,7 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 处理开发模式提示
     window.voidAPI.onUpdateDevMode((info) => {
-        console.log('[Renderer] Update check in dev mode:', info);
+        if (DEBUG) console.log('[Renderer] Update check in dev mode:', info);
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
         showUpdateNotification(`ℹ️ ${info.message}\n当前版本：v${info.version}`, 'info', false);
@@ -962,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(debouncedScaleUpdate, 100);
     }
 
-    console.log('[Init] ✅ Initialization complete');
+    if (DEBUG) console.log('[Init] ✅ Initialization complete');
 });
 
 // ✅ Start async initialization
