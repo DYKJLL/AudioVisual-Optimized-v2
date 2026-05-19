@@ -4,7 +4,7 @@
   "description": "The key to unlock all streams. Optimized version with improved performance.",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "electron . --no-sandbox",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
@@ -30,9 +30,9 @@
   "build": {
     "appId": "com.void.player",
     "publish": {
-      "provider": "github",
-      "owner": "DYKJLL",
-      "repo": "AudioVisual-Optimized-v2"
+      "provider": "generic",
+      "channel": "latest",
+      "baseUrl": "https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/"
     },
     "productName": "AudioVisual",
     "files": [
@@ -42,7 +42,7 @@
     ],
     "win": {
       "target": {
-        "target": "nsis",
+        "target": "portable",
         "arch": [
           "x64"
         ]
@@ -50,6 +50,7 @@
       "icon": "assets/images/icon-512.png",
       "requestedExecutionLevel": "asInvoker",
       "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": false,
       "publisherName": "AudioVisual",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
