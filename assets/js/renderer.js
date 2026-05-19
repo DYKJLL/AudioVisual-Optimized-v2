@@ -218,12 +218,12 @@ const SettingsManager = {
 // =============================================
 
 const THEME_PRESETS = {
-  purple: { highlight: '#7c5ce0', sidebarBg: '#2a2d42', primaryBg: '#1e1e2f', text: '#dcdce4', textSecondary: '#a0a0b8', accent: '#3a3d5b' },
-  mint:   { highlight: '#C3F53C', sidebarBg: '#2a3d1a', primaryBg: '#1e2a14', text: '#e8f5d4', textSecondary: '#a0b888', accent: '#3a4b2a' },
-  coral:  { highlight: '#ff6768', sidebarBg: '#3d2a2a', primaryBg: '#2f1e1e', text: '#f5e8e8', textSecondary: '#b8a0a0', accent: '#4a2a2a' },
-  ocean:  { highlight: '#00b4d8', sidebarBg: '#1a2d3d', primaryBg: '#141e2f', text: '#e0e8f5', textSecondary: '#a0b8c8', accent: '#1a2a3a' },
-  sunset: { highlight: '#ff9a56', sidebarBg: '#3d2a1a', primaryBg: '#2f1e14', text: '#f5ece0', textSecondary: '#c8b8a0', accent: '#3a2a1a' },
-  dark:   { highlight: '#6a6a8a', sidebarBg: '#1a1a2a', primaryBg: '#12121e', text: '#dcdce8', textSecondary: '#8080a0', accent: '#2a2a3a' }
+  purple: { highlight: '#7c5ce0', sidebarBg: '#2a2d42', primaryBg: '#1e1e2f', text: '#dcdce4', textSecondary: '#a0a0b8', accent: '#3a3d5b', btnBg: '#7c5ce0', btnText: '#ffffff', fontSize: 14, fontWeight: 400, borderRadius: 8 },
+  mint:   { highlight: '#C3F53C', sidebarBg: '#2a3d1a', primaryBg: '#1e2a14', text: '#e8f5d4', textSecondary: '#a0b888', accent: '#3a4b2a', btnBg: '#C3F53C', btnText: '#1a1a1a', fontSize: 14, fontWeight: 400, borderRadius: 8 },
+  coral:  { highlight: '#ff6768', sidebarBg: '#3d2a2a', primaryBg: '#2f1e1e', text: '#f5e8e8', textSecondary: '#b8a0a0', accent: '#4a2a2a', btnBg: '#ff6768', btnText: '#ffffff', fontSize: 14, fontWeight: 400, borderRadius: 8 },
+  ocean:  { highlight: '#00b4d8', sidebarBg: '#1a2d3d', primaryBg: '#141e2f', text: '#e0e8f5', textSecondary: '#a0b8c8', accent: '#1a2a3a', btnBg: '#00b4d8', btnText: '#ffffff', fontSize: 14, fontWeight: 400, borderRadius: 8 },
+  sunset: { highlight: '#ff9a56', sidebarBg: '#3d2a1a', primaryBg: '#2f1e14', text: '#f5ece0', textSecondary: '#c8b8a0', accent: '#3a2a1a', btnBg: '#ff9a56', btnText: '#ffffff', fontSize: 14, fontWeight: 400, borderRadius: 8 },
+  dark:   { highlight: '#6a6a8a', sidebarBg: '#1a1a2a', primaryBg: '#12121e', text: '#dcdce8', textSecondary: '#8080a0', accent: '#2a2a3a', btnBg: '#6a6a8a', btnText: '#ffffff', fontSize: 14, fontWeight: 400, borderRadius: 8 }
 };
 
 const DEFAULT_THEME = { ...THEME_PRESETS.purple, glassEnabled: false };
@@ -238,14 +238,21 @@ function hexToRgba(hex, alpha = 1) {
 }
 
 function applyThemeColors(theme, glassEnabled) {
-  const root = document.documentElement;
-  root.style.setProperty('--highlight-color', theme.highlight);
-  root.style.setProperty('--sidebar-bg', theme.sidebarBg);
-  root.style.setProperty('--primary-bg', theme.primaryBg);
-  root.style.setProperty('--text-color', theme.text);
-  root.style.setProperty('--text-secondary-color', theme.textSecondary);
-  root.style.setProperty('--accent-color', theme.accent);
-  root.style.setProperty('--secondary-bg', theme.primaryBg);
+  const rootVars = document.documentElement;
+  rootVars.style.setProperty('--highlight-color', theme.highlight);
+  rootVars.style.setProperty('--sidebar-bg', theme.sidebarBg);
+  rootVars.style.setProperty('--primary-bg', theme.primaryBg);
+  rootVars.style.setProperty('--text-color', theme.text);
+  rootVars.style.setProperty('--text-secondary-color', theme.textSecondary);
+  rootVars.style.setProperty('--accent-color', theme.accent);
+  rootVars.style.setProperty('--secondary-bg', theme.primaryBg);
+  rootVars.style.setProperty('--btn-bg-color', theme.btnBg);
+  rootVars.style.setProperty('--btn-text-color', theme.btnText);
+  rootVars.style.setProperty('--border-radius', `${theme.borderRadius}px`);
+
+  // Global font size and weight
+  document.body.style.fontSize = `${theme.fontSize}px`;
+  document.body.style.fontWeight = theme.fontWeight;
 
   // Glass effect
   const sidebar = document.querySelector('.sidebar');
@@ -288,21 +295,49 @@ function applyThemeColors(theme, glassEnabled) {
     previewTopbar.style.webkitBackdropFilter = glassEnabled ? 'blur(16px) saturate(150%)' : '';
   }
   if (previewBtn) {
-    previewBtn.style.background = theme.highlight;
-    previewBtn.style.color = '#fff';
+    previewBtn.style.background = theme.btnBg;
+    previewBtn.style.color = theme.btnText;
+    previewBtn.style.borderRadius = `${theme.borderRadius}px`;
+    previewBtn.style.fontSize = `${Math.max(6, theme.fontSize - 4)}px`;
   }
   if (previewLogo) previewLogo.style.color = theme.highlight;
   if (previewVideo) previewVideo.style.background = theme.primaryBg;
-  if (previewSmBtn) previewSmBtn.style.background = `rgba(${parseInt(theme.text.slice(1,3),16)},${parseInt(theme.text.slice(3,5),16)},${parseInt(theme.text.slice(5,7),16)},0.08)`;
-  if (previewSmBtn) previewSmBtn.style.color = theme.textSecondary;
+  if (previewSmBtn) {
+    previewSmBtn.style.background = `rgba(${parseInt(theme.text.slice(1,3),16)},${parseInt(theme.text.slice(3,5),16)},${parseInt(theme.text.slice(5,7),16)},0.08)`;
+    previewSmBtn.style.color = theme.textSecondary;
+    previewSmBtn.style.borderRadius = `${theme.borderRadius}px`;
+  }
 
-  // Update color picker inputs
-  const keys = ['highlight', 'sidebarBg', 'primaryBg', 'text', 'textSecondary', 'accent'];
-  keys.forEach(k => {
-    const picker = document.getElementById(`color-${k === 'sidebarBg' ? 'sidebar-bg' : k === 'textSecondary' ? 'text-secondary' : k === 'primaryBg' ? 'primary-bg' : k === 'text' ? 'text' : k}`);
-    const textInput = document.getElementById(`color-${k === 'sidebarBg' ? 'sidebar-bg' : k === 'textSecondary' ? 'text-secondary' : k === 'primaryBg' ? 'primary-bg' : k === 'text' ? 'text' : k}-text`);
-    if (picker) picker.value = theme[k];
-    if (textInput) textInput.value = theme[k];
+  // Apply border radius & width to root
+  const rootEl = document.documentElement;
+  rootEl.style.setProperty('--border-radius', `${currentTheme.borderRadius}px`);
+  rootEl.style.setProperty('--border-width', `${currentTheme.borderWidth}px`);
+
+  // Apply button font
+  document.querySelectorAll('.action-button, .compact-action-button').forEach(btn => {
+    if (btn) {
+      btn.style.fontSize = `${currentTheme.fontSize}px`;
+      btn.style.fontWeight = currentTheme.fontWeight;
+      btn.style.borderRadius = `${currentTheme.borderRadius}px`;
+    }
+  });
+
+  // Update slider displays
+  const valEls = {
+    'fontSize': 'val-font-size', 'fontWeight': 'val-font-weight',
+    'borderRadius': 'val-border-radius'
+  };
+  Object.entries(valEls).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = currentTheme[k] + (k === 'fontSize' || k === 'borderRadius' ? 'px' : '');
+  });
+  const sliders = {
+    'slider-font-size': 'fontSize', 'slider-font-weight': 'fontWeight',
+    'slider-border-radius': 'borderRadius'
+  };
+  Object.entries(sliders).forEach(([id, k]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = currentTheme[k];
   });
 }
 
@@ -314,6 +349,34 @@ async function loadThemeColors() {
     }
   } catch(e) {}
   applyThemeColors(currentTheme, currentTheme.glassEnabled);
+
+  // Sync color picker inputs with loaded theme
+  const colorKeys = [
+    ['color-highlight', 'highlight'],
+    ['color-sidebar-bg', 'sidebarBg'],
+    ['color-primary-bg', 'primaryBg'],
+    ['color-text', 'text'],
+    ['color-text-secondary', 'textSecondary'],
+    ['color-accent', 'accent'],
+    ['color-btn-bg', 'btnBg'],
+    ['color-btn-text', 'btnText']
+  ];
+  colorKeys.forEach(([pickerId, key]) => {
+    const picker = document.getElementById(pickerId);
+    const textInput = document.getElementById(pickerId + '-text');
+    if (picker) picker.value = currentTheme[key];
+    if (textInput) textInput.value = currentTheme[key];
+  });
+
+  // Sync sliders
+  const sliderKeys = { 'slider-font-size': 'fontSize', 'slider-font-weight': 'fontWeight', 'slider-border-radius': 'borderRadius' };
+  Object.entries(sliderKeys).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(key === 'fontSize' ? 'val-font-size' : key === 'fontWeight' ? 'val-font-weight' : 'val-border-radius');
+    if (el) el.value = currentTheme[key];
+    if (valEl) valEl.textContent = currentTheme[key] + (key !== 'fontWeight' ? 'px' : '');
+  });
+
   if (document.getElementById('toggle-glass')) {
     document.getElementById('toggle-glass').checked = currentTheme.glassEnabled;
   }
@@ -348,6 +411,11 @@ function updateThemeFromUI() {
   currentTheme.text = document.getElementById('color-text')?.value || currentTheme.text;
   currentTheme.textSecondary = document.getElementById('color-text-secondary')?.value || currentTheme.textSecondary;
   currentTheme.accent = document.getElementById('color-accent')?.value || currentTheme.accent;
+  currentTheme.btnBg = document.getElementById('color-btn-bg')?.value || currentTheme.btnBg;
+  currentTheme.btnText = document.getElementById('color-btn-text')?.value || currentTheme.btnText;
+  currentTheme.fontSize = parseInt(document.getElementById('slider-font-size')?.value) || currentTheme.fontSize;
+  currentTheme.fontWeight = parseInt(document.getElementById('slider-font-weight')?.value) || currentTheme.fontWeight;
+  currentTheme.borderRadius = parseInt(document.getElementById('slider-border-radius')?.value) || currentTheme.borderRadius;
   currentTheme.glassEnabled = document.getElementById('toggle-glass')?.checked ?? false;
   applyThemeColors(currentTheme, currentTheme.glassEnabled);
 }
@@ -360,10 +428,31 @@ function initAppearanceTab() {
   syncColorPicker('color-text', 'color-text-text');
   syncColorPicker('color-text-secondary', 'color-text-secondary-text');
   syncColorPicker('color-accent', 'color-accent-text');
+  syncColorPicker('color-btn-bg', 'color-btn-bg-text');
+  syncColorPicker('color-btn-text', 'color-btn-text-text');
 
   // Live update on any change
   document.querySelectorAll('.color-picker, .color-text-input').forEach(el => {
     el.addEventListener('input', updateThemeFromUI);
+  });
+
+  // Slider controls
+  const sliderMap = [
+    { id: 'slider-font-size', key: 'fontSize', suffix: 'px', displayId: 'val-font-size' },
+    { id: 'slider-font-weight', key: 'fontWeight', suffix: '', displayId: 'val-font-weight' },
+    { id: 'slider-border-radius', key: 'borderRadius', suffix: 'px', displayId: 'val-border-radius' }
+  ];
+  sliderMap.forEach(({ id, key, suffix, displayId }) => {
+    const el = document.getElementById(id);
+    const displayEl = document.getElementById(displayId);
+    if (el) {
+      el.addEventListener('input', () => {
+        currentTheme[key] = parseFloat(el.value);
+        if (displayEl) displayEl.textContent = el.value + suffix;
+        updateThemeFromUI();
+      });
+      el.addEventListener('change', saveThemeColors);
+    }
   });
 
   // Preset buttons
@@ -388,7 +477,7 @@ function initAppearanceTab() {
     });
   }
 
-  // Save button applies theme
+  // Save button
   const saveBtn = document.getElementById('save-settings');
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {

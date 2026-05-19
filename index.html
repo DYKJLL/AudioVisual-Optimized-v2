@@ -431,6 +431,49 @@
                                     </div>
                                 </div>
                                 <div class="appearance-section">
+                                    <div class="appearance-section-title">按钮样式</div>
+                                    <div class="style-control-row">
+                                        <div class="style-control-item">
+                                            <label>按钮颜色</label>
+                                            <div class="color-picker-row">
+                                                <input type="color" id="color-btn-bg" class="color-picker" value="#7c5ce0">
+                                                <input type="text" id="color-btn-bg-text" class="color-text-input" value="#7c5ce0" maxlength="7">
+                                            </div>
+                                        </div>
+                                        <div class="style-control-item">
+                                            <label>按钮文字色</label>
+                                            <div class="color-picker-row">
+                                                <input type="color" id="color-btn-text" class="color-picker" value="#ffffff">
+                                                <input type="text" id="color-btn-text-text" class="color-text-input" value="#ffffff" maxlength="7">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="appearance-section">
+                                    <div class="appearance-section-title">字体与边框</div>
+                                    <div class="slider-control">
+                                        <div class="slider-label">
+                                            <span>字体大小</span>
+                                            <span id="val-font-size">14px</span>
+                                        </div>
+                                        <input type="range" id="slider-font-size" class="style-slider" min="12" max="20" value="14">
+                                    </div>
+                                    <div class="slider-control">
+                                        <div class="slider-label">
+                                            <span>字体粗细</span>
+                                            <span id="val-font-weight">400</span>
+                                        </div>
+                                        <input type="range" id="slider-font-weight" class="style-slider" min="300" max="700" step="100" value="400">
+                                    </div>
+                                    <div class="slider-control">
+                                        <div class="slider-label">
+                                            <span>边框圆角</span>
+                                            <span id="val-border-radius">8px</span>
+                                        </div>
+                                        <input type="range" id="slider-border-radius" class="style-slider" min="0" max="24" value="8">
+                                    </div>
+                                </div>
+                                <div class="appearance-section">
                                     <div class="appearance-section-title">预设主题</div>
                                     <div class="preset-grid">
                                         <button class="preset-button" data-preset="purple" style="background: linear-gradient(135deg,#7c5ce0,#5b3db8);">💜 优雅紫</button>
@@ -449,6 +492,56 @@
                                             <input type="checkbox" id="toggle-glass">
                                             <span class="toggle-slider"></span>
                                         </label>
+                                    </div>
+                                    <div class="slider-row">
+                                        <div class="slider-label">
+                                            <span>模糊程度</span>
+                                            <span id="blur-value" class="slider-val">20</span>
+                                        </div>
+                                        <input type="range" id="slider-blur" class="style-slider" min="0" max="60" value="20">
+                                    </div>
+                                    <div class="slider-row">
+                                        <div class="slider-label">
+                                            <span>侧边栏透明度</span>
+                                            <span id="sidebar-alpha-value" class="slider-val">85</span><span class="slider-unit">%</span>
+                                        </div>
+                                        <input type="range" id="slider-sidebar-alpha" class="style-slider" min="30" max="100" value="85">
+                                    </div>
+                                </div>
+
+                                <div class="appearance-section">
+                                    <div class="appearance-section-title">边框与圆角</div>
+                                    <div class="slider-row">
+                                        <div class="slider-label">
+                                            <span>圆角大小</span>
+                                            <span id="radius-value" class="slider-val">12</span><span class="slider-unit">px</span>
+                                        </div>
+                                        <input type="range" id="slider-radius" class="style-slider" min="0" max="30" value="12">
+                                    </div>
+                                    <div class="slider-row">
+                                        <div class="slider-label">
+                                            <span>边框粗细</span>
+                                            <span id="border-width-value" class="slider-val">1</span><span class="slider-unit">px</span>
+                                        </div>
+                                        <input type="range" id="slider-border-width" class="style-slider" min="0" max="3" step="0.5" value="1">
+                                    </div>
+                                </div>
+
+                                <div class="appearance-section">
+                                    <div class="appearance-section-title">按钮文字</div>
+                                    <div class="slider-row">
+                                        <div class="slider-label">
+                                            <span>字体大小</span>
+                                            <span id="btn-size-value" class="slider-val">13</span><span class="slider-unit">px</span>
+                                        </div>
+                                        <input type="range" id="slider-btn-size" class="style-slider" min="10" max="18" value="13">
+                                    </div>
+                                    <div class="slider-row">
+                                        <div class="slider-label">
+                                            <span>字体粗细</span>
+                                            <span id="btn-weight-value" class="slider-val">600</span>
+                                        </div>
+                                        <input type="range" id="slider-btn-weight" class="style-slider" min="400" max="900" step="100" value="600">
                                     </div>
                                 </div>
                             </div>

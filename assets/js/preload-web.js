@@ -1,3 +1,4 @@
+const DEBUG = false;
 // preload-web.js - 幽灵的职责：只催眠网站
 const { ipcRenderer } = require('electron');
 // --- Anti-Bot Detection ---
@@ -109,7 +110,7 @@ const DramaSiteOptimizer = {
   blockUnnecessaryResources() {
     if (!this.isDramaSite()) return;
     
-    console.log('[DramaOptimizer] �️ Initializing SAFE resource blocking...');
+    if (DEBUG) console.log('[DramaOptimizer] �️ Initializing SAFE resource blocking...');
     
     // ⚠️ 仅阻止明确已知的广告域名（不过度拦截）
     const blockedDomains = [
@@ -127,7 +128,7 @@ const DramaSiteOptimizer = {
         const srcLower = child.src.toLowerCase();
         const isAdScript = blockedDomains.some(d => srcLower.includes(d));
         if (isAdScript) {
-          console.log('[DramaOptimizer] 🚫 Blocked ad script:', child.src.substring(0, 80));
+          if (DEBUG) console.log('[DramaOptimizer] 🚫 Blocked ad script:', child.src.substring(0, 80));
           return child; // 不添加到 DOM
         }
       }
@@ -140,7 +141,7 @@ const DramaSiteOptimizer = {
     
     setTimeout(() => {
       imageLazyLoadEnabled = true;
-      console.log('[DramaOptimizer] 🖼️ Image lazy loading activated (after 3s delay)');
+      if (DEBUG) console.log('[DramaOptimizer] 🖼️ Image lazy loading activated (after 3s delay)');
     }, 3000); // 等3秒让首屏内容先加载
     
     // ✅ 观察并优化图片加载（保守策略）
@@ -154,7 +155,7 @@ const DramaSiteOptimizer = {
             if (isAdIframe) {
               node.style.display = 'none';
               node.src = 'about:blank';
-              console.log('[DramaOptimizer] 🚫 Blocked ad iframe:', node.src.substring(0, 80));
+              if (DEBUG) console.log('[DramaOptimizer] 🚫 Blocked ad iframe:', node.src.substring(0, 80));
             }
           }
           
@@ -203,17 +204,17 @@ const DramaSiteOptimizer = {
     // 延迟启动观察器（等页面基本结构加载完成）
     setTimeout(() => {
       observer.observe(document.documentElement, { childList: true, subtree: true });
-      console.log('[DramaOptimizer] ✅ DOM observer started');
+      if (DEBUG) console.log('[DramaOptimizer] ✅ DOM observer started');
     }, 1000);
     
-    console.log('[DramaOptimizer] ✅ Safe mode initialized (ads only blocked)');
+    if (DEBUG) console.log('[DramaOptimizer] ✅ Safe mode initialized (ads only blocked)');
   },
   
   // 显示加载进度遮罩
   showLoadingOverlay() {
     // ✅ v2.3 FIX: Disabled - causing overlay display issues
     // The loading overlay was covering the entire screen and not hiding properly
-    console.log('[DramaOptimizer] Loading overlay disabled (v2.3 fix)');
+    if (DEBUG) console.log('[DramaOptimizer] Loading overlay disabled (v2.3 fix)');
   },
   
   hideLoadingOverlay() {
@@ -256,7 +257,7 @@ const DramaSiteOptimizer = {
       
       const anchor = event.target.closest('a');
       if (anchor && anchor.href && anchor.href.startsWith('http')) {
-        console.log('[DramaOptimizer] Link clicked:', anchor.href);
+        if (DEBUG) console.log('[DramaOptimizer] Link clicked:', anchor.href);
         this.showLoadingOverlay();
         
         // 10秒后自动隐藏（超时保护）
@@ -269,7 +270,7 @@ const DramaSiteOptimizer = {
 // ✅ v2.4 FIX: Completely disabled DramaSiteOptimizer
 // Reason: It was intercepting DOM operations and preventing movie1080.xyz from loading
 // The website itself loads in 1-15 seconds, so no optimization is needed
-console.log('[DramaOptimizer] ⛔ COMPLETELY DISABLED (v2.4 fix - site loads fast natively)');
+if (DEBUG) console.log('[DramaOptimizer] ⛔ COMPLETELY DISABLED (v2.4 fix - site loads fast natively)');
 // DramaSiteOptimizer.init(); // ← DISABLED
 
 // --- 事件监听 ---
@@ -286,7 +287,7 @@ document.addEventListener('click', (event) => {
   if (window.location.hostname.includes('iqiyi.com')) {
     const anchor = event.target.closest('a');
     if (anchor && anchor.href && anchor.href.includes('iqiyi.com/v_')) {
-      console.log('[preload-web] Detected iQiyi episode click:', anchor.href);
+      if (DEBUG) console.log('[preload-web] Detected iQiyi episode click:', anchor.href);
       ipcRenderer.send('proactive-parse-request', anchor.href);
     }
   }
@@ -294,7 +295,7 @@ document.addEventListener('click', (event) => {
   if (window.location.hostname.includes('mgtv.com')) {
     const anchor = event.target.closest('a');
     if (anchor && anchor.href && anchor.href.includes('mgtv.com/b/')) {
-      console.log('[preload-web] Detected Mango TV episode click:', anchor.href);
+      if (DEBUG) console.log('[preload-web] Detected Mango TV episode click:', anchor.href);
       ipcRenderer.send('proactive-parse-request', anchor.href);
     }
   }
@@ -332,7 +333,7 @@ let guardianStartTime = 0;
 function startInjectionGuardian(url) {
   if (currentGuardianInterval) {
     clearInterval(currentGuardianInterval);
-    console.log('[Guardian] Cleared previous guardian interval.');
+    if (DEBUG) console.log('[Guardian] Cleared previous guardian interval.');
   }
 
   const iframeId = 'void-player-iframe';
@@ -443,13 +444,13 @@ function startInjectionGuardian(url) {
 
 // 核心：处理来自主进程的解析指令
 ipcRenderer.on('apply-embed-video', (event, url) => {
-  console.log('[preload-web] >>> RECEIVED apply-embed-video signal:', url);
+  if (DEBUG) console.log('[preload-web] >>> RECEIVED apply-embed-video signal:', url);
 
   // 显式清理旧的播放器，确保即便 URL 相同，点击“解析”也要有动作（刷新）
   const oldIframe = document.getElementById('void-player-iframe');
   if (oldIframe) {
     oldIframe.remove();
-    console.log('[preload-web] Force-cleared old iframe to allow re-parse.');
+    if (DEBUG) console.log('[preload-web] Force-cleared old iframe to allow re-parse.');
   }
 
   startInjectionGuardian(url);

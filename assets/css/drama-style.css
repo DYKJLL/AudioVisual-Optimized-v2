@@ -8,10 +8,12 @@
     --secondary-bg: #1a1a1a;
     --sidebar-bg: #101010;
     --accent-color: #333333;
-    --highlight-color: #C0FAA0; /* New accent color */
+    --highlight-color: #7c5ce0; /* New accent color */
     --text-color: #dcdce4;
     --text-secondary-color: #a0a0b8;
     --font-family: 'HarmonyOS Sans SC', sans-serif;
+    --btn-bg-color: #7c5ce0;
+    --btn-text-color: #ffffff;
     --border-radius: 8px;
 }
 
@@ -29,6 +31,8 @@
 .drama-mode .drama-controls {
     display: block; /* Shown in drama mode */
     -webkit-app-region: no-drag;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
 .drama-mode .logo {
@@ -45,8 +49,8 @@
 }
 
 .drama-mode .action-button:hover {
-    background: #a9e08a;
-    box-shadow: 0 0 15px rgba(192, 250, 160, 0.4);
+    background: #8d6fe8;
+    box-shadow: 0 4px 20px rgba(124, 92, 224, 0.4);
 }
 
 .drama-mode #go-button:hover {
@@ -59,8 +63,8 @@
 }
 
 .drama-mode .window-control-button#close-button:hover {
-    background: var(--highlight-color);
-    color: #000;
+    background: rgba(124, 92, 224, 0.2);
+    color: #c4a8ff;
 }
 
 .drama-mode #youku-custom-page .icon-container {
