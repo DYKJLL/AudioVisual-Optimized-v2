@@ -6,5 +6,5 @@ windows:
   size: 83023104
 android:
   path: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.2.6/AudioVisual-1.2.6-arm.apk
-  sha2: 21dffb57726435a770b54e032e622ddaae211ccc9641e3a30ee17013b98453db
-  size: 10907484
+  sha2: 4fdc2709a9d6798c0821e173e66d83d575f8a35bc20efd7ed4374e4c111fd2d5
+  size: 10879361
