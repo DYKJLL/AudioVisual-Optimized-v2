@@ -3,8 +3,8 @@ releaseDate: '2026-05-20T02:15:00Z'
 windows:
   path: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.2.6/AudioVisual-1.2.6-x64.exe
   sha2: e7daa953a0fad4d9d5049a6cf0e209857710e1126a4cd722b234550dfb56bdef
-  size: 83023104
+  size: 10879420
 android:
   path: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.2.6/AudioVisual-1.2.6-arm.apk
-  sha2: 8ca1cef85583b3fdcfaa5ebf935d39d61d4f1a19809f8158dd7ac0626637110b
-  size: 10879358
+  sha2: 75b6122243ebf2065f3bb8ededa1db784ee42cdf0eb0434d4699890db9cd17cc
+  size: 10879420
