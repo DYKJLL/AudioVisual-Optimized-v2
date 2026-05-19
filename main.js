@@ -1,5 +1,7 @@
 // main.js
 
+const DEBUG = false; // 生产环境禁用所有 console 输出
+
 const { app, screen, BrowserWindow, BrowserView, ipcMain, session, shell, dialog } = require('electron');
 
 const path = require('path');
@@ -20,14 +22,14 @@ const settingsStore = new Store({
   encryptionKey: 'bfv2-secure-key-2024'
 });
 
-console.log(`[Settings] ✅ Store initialized at: ${settingsStore.path}`);
+if (DEBUG) console.log(`[Settings] ✅ Store initialized at: ${settingsStore.path}`);
 
 // Settings IPC Handlers
 ipcMain.handle('settings:get', (event, key) => {
   try {
     return { success: true, value: settingsStore.get(key) };
   } catch (error) {
-    console.error('[Settings] ❌ Get error:', error);
+    if (DEBUG) console.error('[Settings] ❌ Get error:', error);
     return { success: false, error: error.message };
   }
 });
@@ -35,7 +37,7 @@ ipcMain.handle('settings:get', (event, key) => {
 ipcMain.handle('settings:set', (event, key, value) => {
   try {
     settingsStore.set(key, value);
-    console.log(`[Settings] ✅ Saved ${key}:`, typeof value === 'object' ? `[${value.length} items]` : value);
+    if (DEBUG) console.log(`[Settings] ✅ Saved ${key}:`, typeof value === 'object' ? `[${value.length} items]` : value);
     
     // Broadcast to all windows for real-time sync
     BrowserWindow.getAllWindows().forEach(win => {
@@ -46,7 +48,7 @@ ipcMain.handle('settings:set', (event, key, value) => {
     
     return { success: true };
   } catch (error) {
-    console.error('[Settings] ❌ Set error:', error);
+    if (DEBUG) console.error('[Settings] ❌ Set error:', error);
     return { success: false, error: error.message };
   }
 });
@@ -62,7 +64,7 @@ ipcMain.handle('settings:getAll', () => {
     };
     return { success: true, data: allSettings };
   } catch (error) {
-    console.error('[Settings] ❌ GetAll error:', error);
+    if (DEBUG) console.error('[Settings] ❌ GetAll error:', error);
     return { success: false, error: error.message, data: { apiList: [], dramaSites: [] } };
   }
 });
@@ -74,7 +76,7 @@ ipcMain.handle('settings:reset', (event, key) => {
     } else {
       settingsStore.clear();
     }
-    console.log(`[Settings] Reset: ${key || 'all'}`);
+    if (DEBUG) console.log(`[Settings] Reset: ${key || 'all'}`);
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -121,6 +123,7 @@ function debounce(func, wait) {
 // --- Environment & Security Configuration ---
 
 // 1. Environment Detection
+
 const isDev = false; // Forced to false to disable auto DevTools
 
 // 2. Hardware Acceleration (Re-enabled for performance)
@@ -133,14 +136,14 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // Development-only switches
 if (isDev) {
-  console.log('Running in development mode. Applying insecure workarounds.');
+  if (DEBUG) console.log('Running in development mode. Applying insecure workarounds.');
   app.commandLine.appendSwitch('ignore-certificate-errors');
 }
 
 // 4. Certificate Error Handler
 if (isDev) {
   app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
-    console.log(`[DEV ONLY] Certificate error for ${url}: ${error}`);
+    if (DEBUG) console.log(`[DEV ONLY] Certificate error for ${url}: ${error}`);
     event.preventDefault();
     callback(true);
   });
@@ -178,7 +181,7 @@ if (widevineInfo) {
   app.commandLine.appendSwitch('widevine-cdm-path', widevineInfo.path);
   app.commandLine.appendSwitch('widevine-cdm-version', widevineInfo.version);
 } else {
-  console.error('Widevine CDM not found.');
+  if (DEBUG) console.error('Widevine CDM not found.');
 }
 
 let mainWindow;
@@ -208,15 +211,15 @@ function evictLRU() {
     
     if (oldView && oldView.webContents && typeof oldView.webContents.isDestroyed === 'function') {
       if (!oldView.webContents.isDestroyed()) {
-        console.log(`[ViewPool] Evicting LRU: ${oldestKey}`);
+        if (DEBUG) console.log(`[ViewPool] Evicting LRU: ${oldestKey}`);
         try {
           oldView.webContents.destroy();
         } catch (err) {
-          console.error(`[ViewPool] Error destroying ${oldestKey}:`, err.message);
+          if (DEBUG) console.error(`[ViewPool] Error destroying ${oldestKey}:`, err.message);
         }
       }
     } else {
-      console.log(`[ViewPool] Skipping invalid view for: ${oldestKey}`);
+      if (DEBUG) console.log(`[ViewPool] Skipping invalid view for: ${oldestKey}`);
     }
     
     viewPool.delete(oldestKey);
@@ -237,7 +240,7 @@ function addToPool(url, viewInstance) {
   
   viewPool.set(url, viewInstance);
   updateLRU(url);
-  console.log(`[ViewPool] ➕ Added: ${url} (Size: ${viewPool.size}/${MAX_VIEW_POOL_SIZE})`);
+  if (DEBUG) console.log(`[ViewPool] ➕ Added: ${url} (Size: ${viewPool.size}/${MAX_VIEW_POOL_SIZE})`);
   return viewInstance;
 }
 
@@ -270,7 +273,7 @@ let isPreloading = false;
 async function preloadAllSites() {
   if (isPreloading) return;
   isPreloading = true;
-  console.log('[Preload] ✨ Starting optimized pre-rendering (LRU mode)...');
+  if (DEBUG) console.log('[Preload] ✨ Starting optimized pre-rendering (LRU mode)...');
   
   // ✅ Only preload top 3 priority sites (not all 9)
   const prioritySites = [
@@ -281,7 +284,7 @@ async function preloadAllSites() {
   for (const url of prioritySites) {
     // Stop if pool is already full
     if (viewPool.size >= MAX_VIEW_POOL_SIZE) {
-      console.log('[Preload] Pool at capacity, stopping early.');
+      if (DEBUG) console.log('[Preload] Pool at capacity, stopping early.');
       break;
     }
     
@@ -310,18 +313,18 @@ async function preloadAllSites() {
         
         loaded = await new Promise((resolve) => {
           const loadTimeout = setTimeout(() => {
-            console.log(`[Preload] ⏰ Timeout (${timeout}ms) for ${url}, retry ${retryCount + 1}/${maxRetry}`);
+            if (DEBUG) console.log(`[Preload] ⏰ Timeout (${timeout}ms) for ${url}, retry ${retryCount + 1}/${maxRetry}`);
             resolve(false);
           }, timeout);
           
           ghostView.webContents.on('did-finish-load', () => {
             clearTimeout(loadTimeout);
-            console.log(`[Preload] Successfully loaded: ${url}`);
+            if (DEBUG) console.log(`[Preload] Successfully loaded: ${url}`);
             resolve(true);
           });
           ghostView.webContents.on('did-fail-load', (event, code, desc) => {
             clearTimeout(loadTimeout);
-            console.log(`[Preload] Failed to load ${url}: ${desc}`);
+            if (DEBUG) console.log(`[Preload] Failed to load ${url}: ${desc}`);
             resolve(false);
           });
           ghostView.webContents.loadURL(url);
@@ -336,7 +339,7 @@ async function preloadAllSites() {
           retryCount++;
         }
       } catch (error) {
-        console.error(`[Preload] Error loading ${url}:`, error.message);
+        if (DEBUG) console.error(`[Preload] Error loading ${url}:`, error.message);
         retryCount++;
       }
       
@@ -346,15 +349,15 @@ async function preloadAllSites() {
     }
     
     if (!loaded) {
-      console.log(`[Preload] Failed after ${maxRetry} retries: ${url}`);
+      if (DEBUG) console.log(`[Preload] Failed after ${maxRetry} retries: ${url}`);
     }
     
     await new Promise(r => setTimeout(r, 200));
   }
   
   isPreloading = false;
-  console.log(`[Preload] ✅ Complete. ${getPoolStats().size}/${MAX_VIEW_POOL_SIZE} views cached.`);
-  console.log(`[Preload] 📊 Stats:`, getPoolStats());
+  if (DEBUG) console.log(`[Preload] ✅ Complete. ${getPoolStats().size}/${MAX_VIEW_POOL_SIZE} views cached.`);
+  if (DEBUG) console.log(`[Preload] 📊 Stats:`, getPoolStats());
 }
 
 function injectThemeCss(targetView) {
@@ -420,17 +423,13 @@ function attachViewEvents(targetView) {
 
   targetView.webContents.on('did-navigate', (event, url) => {
     if (view !== targetView) return;
-    console.log('Page navigated to:', url);
+    if (DEBUG) console.log('Page navigated to:', url);
     if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
-      console.log('[Main] Auto-triggering fast-parse for navigation to video page:', url);
-      mainWindow.webContents.send('fast-parse-url', url);
-    }
-    // 附加保障：did-navigate 时也补一次脉冲
-    if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
+      if (DEBUG) console.log('[Main] Auto-triggering fast-parse for navigation to video page:', url);
       mainWindow.webContents.send('fast-parse-url', url);
     }
     if (url.includes('iqiyi.com/v_') && url.includes('.html')) {
-      console.log('iQiyi redirected to correct video page:', url);
+      if (DEBUG) console.log('iQiyi redirected to correct video page:', url);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('url-updated', url);
       }
@@ -439,13 +438,13 @@ function attachViewEvents(targetView) {
 
   targetView.webContents.on('did-navigate-in-page', (event, url) => {
     if (view !== targetView) return;
-    console.log('Page navigated in-page to:', url);
+    if (DEBUG) console.log('Page navigated in-page to:', url);
   });
 
   targetView.webContents.setWindowOpenHandler(({ url }) => {
     if (view !== targetView) return { action: 'deny' };
     if (targetView && targetView.webContents && !targetView.webContents.isDestroyed()) {
-      console.log(`[WindowOpenHandler] Intercepted new window for URL: ${url}. Loading in current view and forcing re-parse.`);
+      if (DEBUG) console.log(`[WindowOpenHandler] Intercepted new window for URL: ${url}. Loading in current view and forcing re-parse.`);
       targetView.webContents.loadURL(url);
       updateViewBounds(true);
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -483,7 +482,7 @@ function updateViewBounds(isVisible = true) {
     if (isSidebarCollapsed) {
       sidebarWidth = 0;
     }
-    console.log(`[Main] updateViewBounds. isCollapsed: ${isSidebarCollapsed}, sidebarWidth: ${sidebarWidth}`);
+    if (DEBUG) console.log(`[Main] updateViewBounds. isCollapsed: ${isSidebarCollapsed}, sidebarWidth: ${sidebarWidth}`);
 
     // 顶部工具栏高度：clamp(50px, 7vh, 65px)
     const topBarHeight = Math.max(50, Math.min(Math.floor(contentBounds.height * 0.07), 65));
@@ -511,7 +510,7 @@ function updateZoomFactor(targetView) {
     const idealWidth = 1400; // Assumed ideal width for video websites
     const zoomFactor = viewWidth / idealWidth;
     targetView.webContents.setZoomFactor(zoomFactor);
-    console.log(`[Zoom] View width is ${viewWidth}, setting zoom to ${zoomFactor.toFixed(2)}`);
+    if (DEBUG) console.log(`[Zoom] View width is ${viewWidth}, setting zoom to ${zoomFactor.toFixed(2)}`);
   }
 }
 
@@ -544,7 +543,7 @@ function getWindowState() {
       return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
     }
   } catch (e) {
-    console.error('Failed to read window state:', e);
+    if (DEBUG) console.error('Failed to read window state:', e);
   }
   return null;
 }
@@ -560,7 +559,7 @@ function saveWindowState() {
       };
       fs.writeFileSync(stateFile, JSON.stringify(state));
     } catch (e) {
-      console.error('Failed to save window state:', e);
+      if (DEBUG) console.error('Failed to save window state:', e);
     }
   }
 }
@@ -635,7 +634,10 @@ function createWindow() {
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
     else mainWindow.maximize();
   });
-  ipcMain.on('close-window', () => mainWindow.close());
+  ipcMain.on('close-window', () => {
+    mainWindow.close();
+    app.quit();
+  });
 
   ipcMain.on('sidebar-toggle', (event, collapsed) => {
     isSidebarCollapsed = collapsed;
@@ -651,7 +653,7 @@ function createWindow() {
       }
     } else {
       if (view && mainWindow) {
-        console.log('[Visibility] Hiding view by detaching and muting it.');
+        if (DEBUG) console.log('[Visibility] Hiding view by detaching and muting it.');
         view.webContents.setAudioMuted(true);
         mainWindow.removeBrowserView(view);
       }
@@ -663,7 +665,7 @@ function createWindow() {
     if (themeVars) {
       currentThemeCss = `:root { ${Object.entries(themeVars).map(([key, value]) => `${key}: ${value}`).join('; ')} }`;
     }
-    console.log(`[Navigate] Received request for ${url}. Clear history: ${clearHistory}`);
+    if (DEBUG) console.log(`[Navigate] Received request for ${url}. Clear history: ${clearHistory}`);
     
     const siteConfig = dramaSites.find(s => s.url === url);
     const isDramaSite = siteConfig !== undefined;
@@ -681,11 +683,11 @@ function createWindow() {
 
     let isFromCache = false;
     if (viewPool.has(url)) {
-      console.log(`[Navigate] Using cached view for ${url}.`);
+      if (DEBUG) console.log(`[Navigate] Using cached view for ${url}.`);
       view = viewPool.get(url);
       isFromCache = true;
     } else {
-      console.log(`[Navigate] Creating a fresh BrowserView for ${url}.`);
+      if (DEBUG) console.log(`[Navigate] Creating a fresh BrowserView for ${url}.`);
       view = createNewBrowserView();
       addToPool(url, view);
     }
@@ -696,7 +698,7 @@ function createWindow() {
 
     if (clearHistory && view.webContents.clearHistory) {
       view.webContents.clearHistory();
-      console.log(`[Navigate] History cleared for ${url}`);
+      if (DEBUG) console.log(`[Navigate] History cleared for ${url}`);
     }
 
     if (!isFromCache) {
@@ -704,7 +706,7 @@ function createWindow() {
       let loadTimeoutId = null;
       
       loadTimeoutId = setTimeout(() => {
-        console.log(`[Navigate] Load timeout for ${url}, sending load-finished anyway`);
+        if (DEBUG) console.log(`[Navigate] Load timeout for ${url}, sending load-finished anyway`);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('load-finished');
         }
@@ -725,14 +727,14 @@ function createWindow() {
       });
       
       view.webContents.loadURL(url);
-      console.log(`[Navigate] Loading URL: ${url} with timeout ${timeout}ms`);
+      if (DEBUG) console.log(`[Navigate] Loading URL: ${url} with timeout ${timeout}ms`);
       
       if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
-        console.log('[Navigate] Extreme Speed: Early pulse for initial load:', url);
+        if (DEBUG) console.log('[Navigate] Extreme Speed: Early pulse for initial load:', url);
         mainWindow.webContents.send('fast-parse-url', url);
       }
     } else {
-      console.log(`[Navigate] Activating cached URL: ${url}`);
+      if (DEBUG) console.log(`[Navigate] Activating cached URL: ${url}`);
       injectThemeCss(view);
       updateZoomFactor(view);
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -744,7 +746,7 @@ function createWindow() {
 
   // ✅ === Reset Module Handler (Stable v2.5) ===
   ipcMain.on('reset-module', (event, url) => {
-    console.log(`[Reset Module] Resetting module to: ${url}`);
+    if (DEBUG) console.log(`[Reset Module] Resetting module to: ${url}`);
     
     const siteConfig = dramaSites.find(s => s.url === url);
     const isHeavySite = url.includes('movie1080') || url.includes('monkey-flix');
@@ -782,11 +784,11 @@ function createWindow() {
     let loadTimeoutId = null;
     let hasTimedOut = false;
     
-    console.log(`[Reset Module] ⏱️ Timeout set to ${timeout/1000}s for: ${url} (heavy: ${isHeavySite})`);
+    if (DEBUG) console.log(`[Reset Module] ⏱️ Timeout set to ${timeout/1000}s for: ${url} (heavy: ${isHeavySite})`);
     
     loadTimeoutId = setTimeout(() => {
       hasTimedOut = true;
-      console.log(`[Reset Module] ⚠️ Load timeout reached (${timeout/1000}s) for ${url}`);
+      if (DEBUG) console.log(`[Reset Module] ⚠️ Load timeout reached (${timeout/1000}s) for ${url}`);
       
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('load-finished');
@@ -797,7 +799,7 @@ function createWindow() {
     view.webContents.once('did-finish-load', () => {
       if (loadTimeoutId) clearTimeout(loadTimeoutId);
       
-      console.log(`[Reset Module] ✅ Page loaded: ${url} (timeout=${hasTimedOut ? 'YES' : 'NO'})`);
+      if (DEBUG) console.log(`[Reset Module] ✅ Page loaded: ${url} (timeout=${hasTimedOut ? 'YES' : 'NO'})`);
       
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('load-finished');
@@ -810,7 +812,7 @@ function createWindow() {
     
     view.webContents.once('did-fail-load', (event, code, desc) => {
       if (loadTimeoutId) clearTimeout(loadTimeoutId);
-      console.log(`[Reset Module] ❌ Failed to load: ${url} - ${desc}`);
+      if (DEBUG) console.log(`[Reset Module] ❌ Failed to load: ${url} - ${desc}`);
       
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('load-finished');
@@ -818,7 +820,7 @@ function createWindow() {
       }
     });
     
-    console.log(`[Reset Module] 🚀 Loading URL: ${url} (timeout: ${timeout}ms, heavy: ${isHeavySite})`);
+    if (DEBUG) console.log(`[Reset Module] 🚀 Loading URL: ${url} (timeout: ${timeout}ms, heavy: ${isHeavySite})`);
     view.webContents.loadURL(url);
   });
 
@@ -830,7 +832,7 @@ function createWindow() {
   });
 
   ipcMain.on('proactive-parse-request', (event, url) => {
-    console.log('[main.js] Received proactive parse request for:', url);
+    if (DEBUG) console.log('[main.js] Received proactive parse request for:', url);
     updateViewBounds(true);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('fast-parse-url', url);
@@ -839,7 +841,7 @@ function createWindow() {
 
   ipcMain.on('embed-video', (event, url) => {
     if (view && view.webContents && !view.webContents.isDestroyed()) {
-      console.log('[Main] Sending apply-embed-video to view for:', url);
+      if (DEBUG) console.log('[Main] Sending apply-embed-video to view for:', url);
       view.webContents.send('apply-embed-video', url);
     }
   });
@@ -925,23 +927,23 @@ app.whenReady().then(async () => {
       const cacheInfo = JSON.parse(fs.readFileSync(cacheInfoPath, 'utf8'));
       if (cacheInfo.lastPreloadTimestamp && (Date.now() - cacheInfo.lastPreloadTimestamp < twentyFourHours)) {
         cacheIsValid = true;
-        console.log('Pre-rendering cache is still valid.');
+        if (DEBUG) console.log('Pre-rendering cache is still valid.');
       }
     } catch (error) {
-      console.error('Error reading cache info file:', error);
+      if (DEBUG) console.error('Error reading cache info file:', error);
     }
   }
 
   createWindow();
 
   if (!cacheIsValid) {
-    console.log('Cache is missing or stale. Clearing session cache...');
+    if (DEBUG) console.log('Cache is missing or stale. Clearing session cache...');
     await session.defaultSession.clearCache();
     try {
       fs.writeFileSync(cacheInfoPath, JSON.stringify({ lastPreloadTimestamp: Date.now() }));
-      console.log('Updated session cache timestamp.');
+      if (DEBUG) console.log('Updated session cache timestamp.');
     } catch (error) {
-      console.error('Error writing cache info file:', error);
+      if (DEBUG) console.error('Error writing cache info file:', error);
     }
   }
 
@@ -957,25 +959,25 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   // ✅ Clean up all cached BrowserViews to prevent memory leaks
-  console.log('[ViewPool] 🧹 Cleaning up all cached views on exit...');
+  if (DEBUG) console.log('[ViewPool] 🧹 Cleaning up all cached views on exit...');
   viewPool.forEach((viewInstance, url) => {
     // ✅ 安全检查：确保 viewInstance 和 webContents 都有效
     if (viewInstance && viewInstance.webContents && typeof viewInstance.webContents.isDestroyed === 'function') {
       if (!viewInstance.webContents.isDestroyed()) {
-        console.log(`[ViewPool] Destroying: ${url}`);
+        if (DEBUG) console.log(`[ViewPool] Destroying: ${url}`);
         try {
           viewInstance.webContents.destroy();
         } catch (err) {
-          console.error(`[ViewPool] ⚠️ Error destroying ${url}:`, err.message);
+          if (DEBUG) console.error(`[ViewPool] ⚠️ Error destroying ${url}:`, err.message);
         }
       }
     } else {
-      console.log(`[ViewPool] Skipping invalid view: ${url}`);
+      if (DEBUG) console.log(`[ViewPool] Skipping invalid view: ${url}`);
     }
   });
   viewPool.clear();
   lruOrder = [];
-  console.log('[ViewPool] ✅ Cleanup complete.');
+  if (DEBUG) console.log('[ViewPool] ✅ Cleanup complete.');
   
   if (process.platform !== 'darwin') app.quit();
 });
@@ -1001,6 +1003,12 @@ const { autoUpdater } = require('electron-updater');
 // 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
+// 使用 jsDelivr CDN 加速国内更新检查（generic provider）
+autoUpdater.setFeedURL({
+  provider: 'generic',
+  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/'
+});
+
 // 配置 autoUpdater
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
@@ -1022,19 +1030,19 @@ function initializeAutoUpdater() {
     return;
   }
 
-  console.log('[AutoUpdater] Initializing auto updater...');
-  console.log('[AutoUpdater] Current version:', app.getVersion());
-  console.log('[AutoUpdater] Update feed URL:', `https://github.com/${autoUpdater.getFeedURL?.() || 'RemotePinee/AudioVisual'}`);
+  if (DEBUG) console.log('[AutoUpdater] Initializing auto updater...');
+  if (DEBUG) console.log('[AutoUpdater] Current version:', app.getVersion());
+  if (DEBUG) console.log('[AutoUpdater] Update feed URL:', `https://github.com/${autoUpdater.getFeedURL?.() || 'RemotePinee/AudioVisual'}`);
 
   autoUpdater.on('checking-for-update', () => {
-    console.log('[AutoUpdater] Checking for updates...');
+    if (DEBUG) console.log('[AutoUpdater] Checking for updates...');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-checking');
     }
   });
 
   autoUpdater.on('update-available', (info) => {
-    console.log('[AutoUpdater] Update available:', info.version);
+    if (DEBUG) console.log('[AutoUpdater] Update available:', info.version);
     if (updateCheckTimeout) {
       clearTimeout(updateCheckTimeout);
       updateCheckTimeout = null;
@@ -1045,7 +1053,7 @@ function initializeAutoUpdater() {
   });
 
   autoUpdater.on('update-not-available', (info) => {
-    console.log('[AutoUpdater] Update not available. Current version:', info.version);
+    if (DEBUG) console.log('[AutoUpdater] Update not available. Current version:', info.version);
     if (updateCheckTimeout) {
       clearTimeout(updateCheckTimeout);
       updateCheckTimeout = null;
@@ -1057,21 +1065,21 @@ function initializeAutoUpdater() {
 
   autoUpdater.on('download-progress', (progressObj) => {
     const logMessage = `Downloaded ${Math.floor(progressObj.percent)}% (${Math.floor(progressObj.transferred / 1024 / 1024)}MB / ${Math.floor(progressObj.total / 1024 / 1024)}MB)`;
-    console.log('[AutoUpdater]', logMessage);
+    if (DEBUG) console.log('[AutoUpdater]', logMessage);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-download-progress', progressObj);
     }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    console.log('[AutoUpdater] Update downloaded:', info.version);
+    if (DEBUG) console.log('[AutoUpdater] Update downloaded:', info.version);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-downloaded');
     }
   });
 
   autoUpdater.on('error', (err) => {
-    console.error('[AutoUpdater] Error:', err);
+    if (DEBUG) console.error('[AutoUpdater] Error:', err);
     if (mainWindow && !mainWindow.isDestroyed()) {
       // 提供更友好的错误信息
       const errorMessage = err.message || err.toString();
@@ -1084,7 +1092,7 @@ function initializeAutoUpdater() {
   });
 
   isUpdaterInitialized = true;
-  console.log('[AutoUpdater] Initialization complete.');
+  if (DEBUG) console.log('[AutoUpdater] Initialization complete.');
 }
 
 function checkUpdate() {
@@ -1098,12 +1106,12 @@ function checkUpdate() {
     updateCheckTimeout = null;
   }
 
-  console.log('[AutoUpdater] Manually checking for updates...');
-  console.log('[AutoUpdater] App is packed:', isAppPacked);
+  if (DEBUG) console.log('[AutoUpdater] Manually checking for updates...');
+  if (DEBUG) console.log('[AutoUpdater] App is packed:', isAppPacked);
 
   // 开发模式下的特殊处理
   if (!isAppPacked) {
-    console.log('[AutoUpdater] Running in development mode, update check is disabled.');
+    if (DEBUG) console.log('[AutoUpdater] Running in development mode, update check is disabled.');
     if (mainWindow && !mainWindow.isDestroyed()) {
       // 延迟一下让用户看到"检查中"状态
       setTimeout(() => {
@@ -1118,7 +1126,7 @@ function checkUpdate() {
 
   // 设置30秒超时，防止一直卡住
   updateCheckTimeout = setTimeout(() => {
-    console.error('[AutoUpdater] Check timeout after 30 seconds');
+    if (DEBUG) console.error('[AutoUpdater] Check timeout after 30 seconds');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-error', {
         message: '检查更新超时，请检查网络连接或稍后重试。',
@@ -1130,10 +1138,10 @@ function checkUpdate() {
   try {
     autoUpdater.checkForUpdates()
       .then(result => {
-        console.log('[AutoUpdater] Check result:', result);
+        if (DEBUG) console.log('[AutoUpdater] Check result:', result);
       })
       .catch(err => {
-        console.error('[AutoUpdater] Check failed:', err);
+        if (DEBUG) console.error('[AutoUpdater] Check failed:', err);
         if (updateCheckTimeout) {
           clearTimeout(updateCheckTimeout);
           updateCheckTimeout = null;
@@ -1146,7 +1154,7 @@ function checkUpdate() {
         }
       });
   } catch (err) {
-    console.error('[AutoUpdater] Check failed (sync error):', err);
+    if (DEBUG) console.error('[AutoUpdater] Check failed (sync error):', err);
     if (updateCheckTimeout) {
       clearTimeout(updateCheckTimeout);
       updateCheckTimeout = null;
