@@ -1013,11 +1013,10 @@ const { autoUpdater } = require('electron-updater');
 // 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
-// 使用 GitHub Releases 进行更新检查
+// 使用 generic provider + raw URL 方式，避免 GitHub release asset multipart 格式问题
 autoUpdater.setFeedURL({
-  provider: 'github',
-  owner: 'DYKJLL',
-  repo: 'AudioVisual-Optimized-v2'
+  provider: 'generic',
+  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/glassmorphism-ui/latest.yml'
 });
 
 // 配置 autoUpdater
