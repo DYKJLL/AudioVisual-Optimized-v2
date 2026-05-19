@@ -79,6 +79,19 @@
       "icon": "assets/images/icon-512.png",
       "category": "AudioVideo"
     },
+    "apk": {
+      "target": [
+        {
+          "target": "apk",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/images/icon-512.png",
+      "packageName": "com.void.player",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
     "compression": "maximum",
     "nsis": {
       "oneClick": false,
