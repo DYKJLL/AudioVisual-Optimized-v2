@@ -213,6 +213,164 @@ const SettingsManager = {
   }
 };
 
+// =============================================
+// Theme Color System
+// =============================================
+
+const THEME_PRESETS = {
+  purple: { highlight: '#7c5ce0', sidebarBg: '#2a2d42', primaryBg: '#1e1e2f', text: '#dcdce4', textSecondary: '#a0a0b8', accent: '#3a3d5b' },
+  mint:   { highlight: '#C3F53C', sidebarBg: '#2a3d1a', primaryBg: '#1e2a14', text: '#e8f5d4', textSecondary: '#a0b888', accent: '#3a4b2a' },
+  coral:  { highlight: '#ff6768', sidebarBg: '#3d2a2a', primaryBg: '#2f1e1e', text: '#f5e8e8', textSecondary: '#b8a0a0', accent: '#4a2a2a' },
+  ocean:  { highlight: '#00b4d8', sidebarBg: '#1a2d3d', primaryBg: '#141e2f', text: '#e0e8f5', textSecondary: '#a0b8c8', accent: '#1a2a3a' },
+  sunset: { highlight: '#ff9a56', sidebarBg: '#3d2a1a', primaryBg: '#2f1e14', text: '#f5ece0', textSecondary: '#c8b8a0', accent: '#3a2a1a' },
+  dark:   { highlight: '#6a6a8a', sidebarBg: '#1a1a2a', primaryBg: '#12121e', text: '#dcdce8', textSecondary: '#8080a0', accent: '#2a2a3a' }
+};
+
+const DEFAULT_THEME = { ...THEME_PRESETS.purple, glassEnabled: false };
+
+let currentTheme = { ...DEFAULT_THEME };
+
+function hexToRgba(hex, alpha = 1) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function applyThemeColors(theme, glassEnabled) {
+  const root = document.documentElement;
+  root.style.setProperty('--highlight-color', theme.highlight);
+  root.style.setProperty('--sidebar-bg', theme.sidebarBg);
+  root.style.setProperty('--primary-bg', theme.primaryBg);
+  root.style.setProperty('--text-color', theme.text);
+  root.style.setProperty('--text-secondary-color', theme.textSecondary);
+  root.style.setProperty('--accent-color', theme.accent);
+  root.style.setProperty('--secondary-bg', theme.primaryBg);
+
+  // Glass effect
+  const sidebar = document.querySelector('.sidebar');
+  const topBar = document.querySelector('.top-bar');
+  if (glassEnabled) {
+    if (sidebar) {
+      sidebar.style.backdropFilter = 'blur(20px) saturate(160%)';
+      sidebar.style.webkitBackdropFilter = 'blur(20px) saturate(160%)';
+    }
+    if (topBar) {
+      topBar.style.backdropFilter = 'blur(16px) saturate(150%)';
+      topBar.style.webkitBackdropFilter = 'blur(16px) saturate(150%)';
+    }
+  } else {
+    if (sidebar) {
+      sidebar.style.backdropFilter = '';
+      sidebar.style.webkitBackdropFilter = '';
+    }
+    if (topBar) {
+      topBar.style.backdropFilter = '';
+      topBar.style.webkitBackdropFilter = '';
+    }
+  }
+
+  // Update color picker inputs
+  const keys = ['highlight', 'sidebarBg', 'primaryBg', 'text', 'textSecondary', 'accent'];
+  keys.forEach(k => {
+    const picker = document.getElementById(`color-${k === 'sidebarBg' ? 'sidebar-bg' : k === 'textSecondary' ? 'text-secondary' : k === 'primaryBg' ? 'primary-bg' : k === 'text' ? 'text' : k}`);
+    const textInput = document.getElementById(`color-${k === 'sidebarBg' ? 'sidebar-bg' : k === 'textSecondary' ? 'text-secondary' : k === 'primaryBg' ? 'primary-bg' : k === 'text' ? 'text' : k}-text`);
+    if (picker) picker.value = theme[k];
+    if (textInput) textInput.value = theme[k];
+  });
+}
+
+async function loadThemeColors() {
+  try {
+    const result = await window.voidAPI.getAllSettings();
+    if (result.success && result.data && result.data.themeColors) {
+      currentTheme = { ...DEFAULT_THEME, ...result.data.themeColors, glassEnabled: result.data.themeColors.glassEnabled ?? false };
+    }
+  } catch(e) {}
+  applyThemeColors(currentTheme, currentTheme.glassEnabled);
+  if (document.getElementById('toggle-glass')) {
+    document.getElementById('toggle-glass').checked = currentTheme.glassEnabled;
+  }
+}
+
+async function saveThemeColors() {
+  try {
+    await window.voidAPI.setSetting('themeColors', currentTheme);
+  } catch(e) { console.error('[Theme] save failed', e); }
+}
+
+function syncColorPicker(pickerId, textId) {
+  const picker = document.getElementById(pickerId);
+  const text = document.getElementById(textId);
+  if (!picker || !text) return;
+  picker.addEventListener('input', () => {
+    text.value = picker.value;
+    updateThemeFromUI();
+  });
+  text.addEventListener('input', () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(text.value)) {
+      picker.value = text.value;
+      updateThemeFromUI();
+    }
+  });
+}
+
+function updateThemeFromUI() {
+  currentTheme.highlight = document.getElementById('color-highlight')?.value || currentTheme.highlight;
+  currentTheme.sidebarBg = document.getElementById('color-sidebar-bg')?.value || currentTheme.sidebarBg;
+  currentTheme.primaryBg = document.getElementById('color-primary-bg')?.value || currentTheme.primaryBg;
+  currentTheme.text = document.getElementById('color-text')?.value || currentTheme.text;
+  currentTheme.textSecondary = document.getElementById('color-text-secondary')?.value || currentTheme.textSecondary;
+  currentTheme.accent = document.getElementById('color-accent')?.value || currentTheme.accent;
+  currentTheme.glassEnabled = document.getElementById('toggle-glass')?.checked ?? false;
+  applyThemeColors(currentTheme, currentTheme.glassEnabled);
+}
+
+function initAppearanceTab() {
+  // Sync picker <-> text inputs
+  syncColorPicker('color-highlight', 'color-highlight-text');
+  syncColorPicker('color-sidebar-bg', 'color-sidebar-bg-text');
+  syncColorPicker('color-primary-bg', 'color-primary-bg-text');
+  syncColorPicker('color-text', 'color-text-text');
+  syncColorPicker('color-text-secondary', 'color-text-secondary-text');
+  syncColorPicker('color-accent', 'color-accent-text');
+
+  // Live update on any change
+  document.querySelectorAll('.color-picker, .color-text-input').forEach(el => {
+    el.addEventListener('input', updateThemeFromUI);
+  });
+
+  // Preset buttons
+  document.querySelectorAll('.preset-button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = THEME_PRESETS[btn.dataset.preset];
+      if (preset) {
+        currentTheme = { ...preset, glassEnabled: currentTheme.glassEnabled };
+        applyThemeColors(currentTheme, currentTheme.glassEnabled);
+        saveThemeColors();
+      }
+    });
+  });
+
+  // Glass toggle
+  const glassToggle = document.getElementById('toggle-glass');
+  if (glassToggle) {
+    glassToggle.addEventListener('change', () => {
+      currentTheme.glassEnabled = glassToggle.checked;
+      applyThemeColors(currentTheme, currentTheme.glassEnabled);
+      saveThemeColors();
+    });
+  }
+
+  // Save button applies theme
+  const saveBtn = document.getElementById('save-settings');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      saveThemeColors();
+    });
+  }
+}
+
 const platformSelect = document.getElementById('platform-select');
 const apiSelect = document.getElementById('api-select');
 
@@ -555,6 +713,10 @@ async function initialize() {
   await SettingsManager.load();
   
   if (DEBUG) console.log('[Init] Settings loaded, initializing UI...');
+  
+  // Load theme colors
+  await loadThemeColors();
+  initAppearanceTab();
   
   // Initial UI state setup
   dramaControls.style.display = 'none';
