@@ -1,8 +1,8 @@
 version: 1.2.8
-releaseDate: '2026-05-22T10:46:27.370Z'
-path: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.2.8/AudioVisual-1.2.8-x64.exe
-sha2: e35dbf3eefb4e7a423cc80bc4b1ed54b60f35cbdbd0eabfd6c42326a57153ef378d54a708e11c7ce2a043ef319646c50d22a1e11c188df0a6d9c1d747342bd5e
 files:
-  - url: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.2.8/AudioVisual-1.2.8-x64.exe
-    sha2: e35dbf3eefb4e7a423cc80bc4b1ed54b60f35cbdbd0eabfd6c42326a57153ef378d54a708e11c7ce2a043ef319646c50d22a1e11c188df0a6d9c1d747342bd5e
-    size: 88894898
+  - url: AudioVisual-1.2.8-x64.exe
+    sha512: WGj38sWRTV/gWiZJCV62fD4KlsFyCO6NvgJrKK+9j/Yp+Dpk+w9/tFKO+kCwaXPJ5pw10M4MZoWJSOsqQhbXgg==
+    size: 88895224
+path: AudioVisual-1.2.8-x64.exe
+sha512: WGj38sWRTV/gWiZJCV62fD4KlsFyCO6NvgJrKK+9j/Yp+Dpk+w9/tFKO+kCwaXPJ5pw10M4MZoWJSOsqQhbXgg==
+releaseDate: '2026-05-22T11:09:02.476Z'

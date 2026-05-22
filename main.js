@@ -1042,15 +1042,35 @@ const { autoUpdater } = require('electron-updater');
 const isAppPacked = app.isPackaged;
 
 // 设置代理（electron-updater 读取 process.env.https_proxy）
-// Clash Verge 等代理软件默认监听 7897 端口
+// Clash Verge 默认监听 http://127.0.0.1:7897
 process.env.https_proxy = 'http://127.0.0.1:7897';
 process.env.http_proxy = 'http://127.0.0.1:7897';
 
-// 使用 GitHub raw 直链，electron-updater 通过代理访问
-autoUpdater.setFeedURL({
-  provider: 'generic',
-  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/'
-});
+// GitHub token：优先从环境变量读取，fallback 到 electron-store 保存的值
+let githubToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+if (!githubToken) {
+  try {
+    const Store = require('electron-store');
+    const store = new Store();
+    githubToken = store.get('githubToken');
+  } catch (e) {}
+}
+// 若仍未获取到，从 git-credentials 文件读取（便携安全备份）
+if (!githubToken && isAppPacked) {
+  try {
+    const fs = require('fs');
+    const creds = fs.readFileSync(require('os').homedir() + '/.git-credentials', 'utf8');
+    const match = creds.match(/gho_[a-zA-Z0-9]+/);
+    if (match) githubToken = match[0];
+  } catch (e) {}
+}
+if (githubToken) {
+  process.env.GH_TOKEN = githubToken;
+}
+
+// 使用 GitHub provider，electron-updater 自动从 GitHub Releases 获取版本信息和下载链接
+// 无需手动管理 latest.yml，exe 已在 GitHub Release 中
+autoUpdater.setFeedURL({ provider: 'github' });
 
 // 配置 autoUpdater
 autoUpdater.autoDownload = false;

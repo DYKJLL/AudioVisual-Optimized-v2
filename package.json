@@ -29,8 +29,9 @@
   "build": {
     "appId": "com.void.player",
     "publish": {
-      "provider": "generic",
-      "url": "https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/"
+      "provider": "github",
+      "owner": "DYKJLL",
+      "repo": "AudioVisual-Optimized-v2"
     },
     "productName": "AudioVisual",
     "files": [
