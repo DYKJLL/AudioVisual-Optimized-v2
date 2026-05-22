@@ -1047,6 +1047,13 @@ autoUpdater.setFeedURL({
   url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/'
 });
 
+// 尝试使用系统代理（支持 Clash 等代理工具）
+try {
+  autoUpdater.setProxy('system');
+} catch (e) {
+  if (DEBUG) console.log('[AutoUpdater] setProxy error:', e.message);
+}
+
 // 配置 autoUpdater
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
@@ -1118,13 +1125,27 @@ function initializeAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     if (DEBUG) console.error('[AutoUpdater] Error:', err);
+    if (updateCheckTimeout) {
+      clearTimeout(updateCheckTimeout);
+      updateCheckTimeout = null;
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // 提供更友好的错误信息
       const errorMessage = err.message || err.toString();
+      const errorCode = err.code || '';
+      let friendlyMessage = '检查更新失败，请稍后重试';
+      if (errorCode === 'TIMEOUT' || errorMessage.includes('ETIMEDOUT')) {
+        friendlyMessage = '网络超时，请检查网络连接后重试';
+      } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('getaddrinfo')) {
+        friendlyMessage = '网络连接失败，请检查网络或开启代理';
+      } else if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+        friendlyMessage = '更新配置获取失败，请前往 GitHub 下载最新版';
+      } else if (errorMessage.includes('sha')) {
+        friendlyMessage = '文件校验失败，请前往 GitHub 下载最新版';
+      }
       mainWindow.webContents.send('update-error', {
-        message: errorMessage,
-        code: err.code,
-        stack: err.stack
+        message: friendlyMessage,
+        code: errorCode,
+        originalMessage: errorMessage
       });
     }
   });
