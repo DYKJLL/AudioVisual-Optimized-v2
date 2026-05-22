@@ -956,6 +956,17 @@ app.whenReady().then(async () => {
     callback({ responseHeaders: details.responseHeaders });
   });
 
+  // 配置 Electron session 代理（优先于 process.env，用于 electron-updater 和所有网络请求）
+  const proxyUrl = 'http://127.0.0.1:7897';
+  session.defaultSession.setProxy({
+    proxyRules: proxyUrl,
+    proxyBypassRules: '<local>'
+  }).then(() => {
+    console.log('[Proxy] Session proxy configured:', proxyUrl);
+  }).catch(err => {
+    console.error('[Proxy] Failed to set session proxy:', err.message);
+  });
+
   const cacheInfoPath = path.join(app.getPath('userData'), 'cache_info.json');
   const twentyFourHours = 24 * 60 * 60 * 1000;
   let cacheIsValid = false;
@@ -1035,12 +1046,6 @@ ipcMain.on('quit-and-install', () => {
   autoUpdater.quitAndInstall();
 });
 
-// --- Auto Updater ---
-const { autoUpdater } = require('electron-updater');
-
-// 检测是否为开发模式（应用未打包）
-const isAppPacked = app.isPackaged;
-
 // 设置代理（electron-updater 读取 process.env.https_proxy）
 // Clash Verge 默认监听 http://127.0.0.1:7897
 process.env.https_proxy = 'http://127.0.0.1:7897';
@@ -1069,15 +1074,33 @@ if (!githubToken && isAppPacked) {
   }
 }
 if (githubToken) {
+  // 必须设置为 process.env.GH_TOKEN，electron-updater 内部读取此环境变量
   process.env.GH_TOKEN = githubToken;
   console.log('[AutoUpdater] GitHub Token 已设置:', githubToken.substring(0, 8) + '***');
 } else {
   console.log('[AutoUpdater] 警告: 未找到 GitHub Token，可能触发 API 限速');
 }
 
-// 使用 GitHub provider，electron-updater 自动从 GitHub Releases 获取版本信息和下载链接
-// 无需手动管理 latest.yml，exe 已在 GitHub Release 中
-autoUpdater.setFeedURL({ provider: 'github' });
+let isUpdaterInitialized = false;
+let updateCheckTimeout = null;
+
+// --- Auto Updater ---
+const { autoUpdater } = require('electron-updater');
+
+// 检测是否为开发模式（应用未打包）
+const isAppPacked = app.isPackaged;
+
+console.log('[AutoUpdater] 当前版本:', app.getVersion());
+console.log('[AutoUpdater] 是否打包:', isAppPacked);
+console.log('[AutoUpdater] 代理:', process.env.https_proxy);
+
+// 使用 generic provider，从 raw.githubusercontent.com 读取 latest.yml（避免 GitHub CDN 重定向问题）
+// latest.yml 必须提交到仓库根目录：https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/latest.yml
+// 文件中 url 字段指向 GitHub releases 直链（用户实测可用）
+autoUpdater.setFeedURL({
+  provider: 'generic',
+  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/'
+});
 
 // 配置 autoUpdater
 autoUpdater.autoDownload = false;
@@ -1092,27 +1115,22 @@ try {
   autoUpdater.logger = console;
 }
 
-let isUpdaterInitialized = false;
-let updateCheckTimeout = null;
-
 function initializeAutoUpdater() {
   if (isUpdaterInitialized) {
     return;
   }
 
-  if (DEBUG) console.log('[AutoUpdater] Initializing auto updater...');
-  if (DEBUG) console.log('[AutoUpdater] Current version:', app.getVersion());
-  if (DEBUG) console.log('[AutoUpdater] Update feed URL:', `https://github.com/${autoUpdater.getFeedURL?.() || 'RemotePinee/AudioVisual'}`);
+  console.log('[AutoUpdater] 初始化自动更新器...');
 
   autoUpdater.on('checking-for-update', () => {
-    if (DEBUG) console.log('[AutoUpdater] Checking for updates...');
+    console.log('[AutoUpdater] 正在检查更新...');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-checking');
     }
   });
 
   autoUpdater.on('update-available', (info) => {
-    if (DEBUG) console.log('[AutoUpdater] Update available:', info.version);
+    console.log('[AutoUpdater] 发现新版本:', info.version);
     if (updateCheckTimeout) {
       clearTimeout(updateCheckTimeout);
       updateCheckTimeout = null;
@@ -1123,7 +1141,7 @@ function initializeAutoUpdater() {
   });
 
   autoUpdater.on('update-not-available', (info) => {
-    if (DEBUG) console.log('[AutoUpdater] Update not available. Current version:', info.version);
+    console.log('[AutoUpdater] 已是最新版本:', info.version);
     if (updateCheckTimeout) {
       clearTimeout(updateCheckTimeout);
       updateCheckTimeout = null;
@@ -1134,15 +1152,15 @@ function initializeAutoUpdater() {
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
-    const logMessage = `Downloaded ${Math.floor(progressObj.percent)}% (${Math.floor(progressObj.transferred / 1024 / 1024)}MB / ${Math.floor(progressObj.total / 1024 / 1024)}MB)`;
-    if (DEBUG) console.log('[AutoUpdater]', logMessage);
+    const logMessage = `已下载 ${Math.floor(progressObj.percent)}% (${Math.floor(progressObj.transferred / 1024 / 1024)}MB / ${Math.floor(progressObj.total / 1024 / 1024)}MB)`;
+    console.log('[AutoUpdater]', logMessage);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-download-progress', progressObj);
     }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    if (DEBUG) console.log('[AutoUpdater] Update downloaded:', info.version);
+    console.log('[AutoUpdater] 更新已下载:', info.version);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-downloaded');
     }
@@ -1167,7 +1185,7 @@ function initializeAutoUpdater() {
   });
 
   isUpdaterInitialized = true;
-  if (DEBUG) console.log('[AutoUpdater] Initialization complete.');
+  console.log('[AutoUpdater] 初始化完成');
 }
 
 function checkUpdate() {
@@ -1181,14 +1199,13 @@ function checkUpdate() {
     updateCheckTimeout = null;
   }
 
-  if (DEBUG) console.log('[AutoUpdater] Manually checking for updates...');
-  if (DEBUG) console.log('[AutoUpdater] App is packed:', isAppPacked);
+  console.log('[AutoUpdater] 开始检查更新，当前版本:', app.getVersion());
+  console.log('[AutoUpdater] Feed URL:', autoUpdater.getFeedURL?.());
 
   // 开发模式下的特殊处理
   if (!isAppPacked) {
-    if (DEBUG) console.log('[AutoUpdater] Running in development mode, update check is disabled.');
+    console.log('[AutoUpdater] 开发模式，跳过更新检查');
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // 延迟一下让用户看到"检查中"状态
       setTimeout(() => {
         mainWindow.webContents.send('update-dev-mode', {
           message: '开发模式下无法检查更新。\n请使用打包后的应用程序进行更新检查。',
@@ -1201,7 +1218,7 @@ function checkUpdate() {
 
   // 设置30秒超时，防止一直卡住
   updateCheckTimeout = setTimeout(() => {
-    if (DEBUG) console.error('[AutoUpdater] Check timeout after 30 seconds');
+    console.error('[AutoUpdater] 检查更新超时');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-error', {
         message: '检查更新超时，请检查网络连接或稍后重试。',
@@ -1209,36 +1226,28 @@ function checkUpdate() {
       });
     }
   }, 30000);
-  
-  try {
-    autoUpdater.checkForUpdates()
-      .then(result => {
-        if (DEBUG) console.log('[AutoUpdater] Check result:', result);
-      })
-      .catch(err => {
-        if (DEBUG) console.error('[AutoUpdater] Check failed:', err);
-        if (updateCheckTimeout) {
-          clearTimeout(updateCheckTimeout);
-          updateCheckTimeout = null;
-        }
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('update-error', {
-            message: err.message || '检查更新失败，请检查网络连接或稍后重试。',
-            code: err.code
-          });
-        }
-      });
-  } catch (err) {
-    if (DEBUG) console.error('[AutoUpdater] Check failed (sync error):', err);
-    if (updateCheckTimeout) {
-      clearTimeout(updateCheckTimeout);
-      updateCheckTimeout = null;
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-error', {
-        message: err.message || '检查更新失败，请检查网络连接或稍后重试。',
-        code: err.code
-      });
-    }
-  }
+
+  console.log('[AutoUpdater] 调用 checkForUpdates...');
+  autoUpdater.checkForUpdates()
+    .then(result => {
+      console.log('[AutoUpdater] checkForUpdates 返回:', result);
+      if (updateCheckTimeout) {
+        clearTimeout(updateCheckTimeout);
+        updateCheckTimeout = null;
+      }
+    })
+    .catch(err => {
+      console.error('[AutoUpdater] checkForUpdates 失败:', err.message, 'Code:', err.code);
+      if (updateCheckTimeout) {
+        clearTimeout(updateCheckTimeout);
+        updateCheckTimeout = null;
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-error', {
+          message: err.message || '检查更新失败，请检查网络连接或稍后重试。',
+          code: err.code || '',
+          originalMessage: (err.message || '') + (err.stack ? '\n' + err.stack : '')
+        });
+      }
+    });
 }
