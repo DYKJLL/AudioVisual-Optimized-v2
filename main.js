@@ -1041,18 +1041,12 @@ const { autoUpdater } = require('electron-updater');
 // 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
-// 使用 GitHub raw 直连，避免 CDN 缓存问题
+// 使用 jsDelivr CDN 镜像，国内无需代理即可访问 GitHub 资源
+// latest.yml 和 exe 文件均通过 jsDelivr 加速分发
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/'
+  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2/update/'
 });
-
-// 尝试使用系统代理（支持 Clash 等代理工具）
-try {
-  autoUpdater.setProxy('system');
-} catch (e) {
-  if (DEBUG) console.log('[AutoUpdater] setProxy error:', e.message);
-}
 
 // 配置 autoUpdater
 autoUpdater.autoDownload = false;

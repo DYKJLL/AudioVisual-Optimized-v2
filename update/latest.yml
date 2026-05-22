@@ -1,8 +1,8 @@
 version: 1.2.8
 files:
   - url: AudioVisual-1.2.8-x64.exe
-    sha512: POo5MAY7xiHOq9Y9IkVhMDNmAfEKhusbs9QKDS3ZXo9OH5rFiCcndaaCw436IoVzBeMP2UzQZcFdM+Gk6T3dJg==
-    size: 88894854
+    sha512: 1AyVsdCUMqXIxXs8Dx8Cpusth2CV1az6qHSoGsXdCaW3BBiM5fjg+6f+gwG4WEqvvaxQnPXGTplFpcLZCJbLvA==
+    size: 88894744
 path: AudioVisual-1.2.8-x64.exe
-sha512: POo5MAY7xiHOq9Y9IkVhMDNmAfEKhusbs9QKDS3ZXo9OH5rFiCcndaaCw436IoVzBeMP2UzQZcFdM+Gk6T3dJg==
-releaseDate: '2026-05-22T10:18:43.867Z'
+sha512: 1AyVsdCUMqXIxXs8Dx8Cpusth2CV1az6qHSoGsXdCaW3BBiM5fjg+6f+gwG4WEqvvaxQnPXGTplFpcLZCJbLvA==
+releaseDate: '2026-05-22T10:28:36.517Z'
