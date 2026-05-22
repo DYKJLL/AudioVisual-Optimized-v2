@@ -864,16 +864,16 @@ document.addEventListener('DOMContentLoaded', () => {
     window.voidAPI.onUpdateAvailable((info) => {
         if (DEBUG) console.log('[Renderer] Update available:', info.version);
         checkUpdateButton.disabled = false;
-        checkUpdateButton.textContent = '检查更新';
+        checkUpdateButton.textContent = '下载更新';
         checkUpdateButton.onclick = () => {
-            window.voidAPI.openExternalLink('https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/latest');
+            window.voidAPI.downloadUpdate();
         };
-        showUpdateNotification(`发现新版本 v${info.version}，点击打开下载页面`, 'available', true);
+        showUpdateNotification(`发现新版本 v${info.version}，点击下载`, 'available', true);
         const notificationDiv = updateNotificationArea.querySelector('div');
         if (notificationDiv) {
             notificationDiv.style.cursor = 'pointer';
             notificationDiv.onclick = () => {
-                window.voidAPI.openExternalLink('https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/latest');
+                window.voidAPI.downloadUpdate();
             };
         }
     });
