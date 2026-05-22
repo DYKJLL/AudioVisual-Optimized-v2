@@ -83,7 +83,10 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "differentialPackage": true
+      "differentialPackage": true,
+      "shortcutName": "AudioVisual 1.2.7",
+      "include": "./build/installer.nsh",
+      "deleteAppDataOnUninstall": false
     },
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
