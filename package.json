@@ -1,6 +1,6 @@
 {
   "name": "audiovisual",
-  "version": "1.2.6",
+  "version": "1.2.5",
   "description": "The key to unlock all streams. Optimized version with improved performance.",
   "main": "main.js",
   "scripts": {
@@ -29,15 +29,17 @@
   "build": {
     "appId": "com.void.player",
     "publish": {
-      "provider": "github",
-      "owner": "DYKJLL",
-      "repo": "AudioVisual-Optimized-v2"
+      "provider": "generic",
+      "url": "https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/"
     },
     "productName": "AudioVisual",
     "files": [
       "main.js",
       "index.html",
-      "assets/**/*"
+      "package.json",
+      "app-update.yml",
+      "assets/**/*",
+      "update/**/*"
     ],
     "win": {
       "target": {

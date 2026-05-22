@@ -1041,10 +1041,10 @@ const { autoUpdater } = require('electron-updater');
 // 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
-// 使用 jsDelivr CDN 加速国内更新检查（generic provider）
+// 使用 GitHub raw 直连，避免 CDN 缓存问题
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/update/'
+  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/'
 });
 
 // 配置 autoUpdater

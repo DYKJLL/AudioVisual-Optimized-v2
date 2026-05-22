@@ -850,6 +850,8 @@ document.addEventListener('DOMContentLoaded', () => {
     checkUpdateButton.addEventListener('click', () => {
         checkUpdateButton.disabled = true;
         checkUpdateButton.textContent = '检查中...';
+        // 重置 onclick 防止重复绑定
+        checkUpdateButton.onclick = null;
         window.voidAPI.checkForUpdates();
     });
 
@@ -863,63 +865,44 @@ document.addEventListener('DOMContentLoaded', () => {
         if (DEBUG) console.log('[Renderer] Update available:', info.version);
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
-        showUpdateNotification(`🎉 发现新版本 ${info.version}！点击此处开始下载。`, 'available', true);
-        const notificationDiv = updateNotificationArea.querySelector('div');
-        notificationDiv.style.cursor = 'pointer';
-        notificationDiv.onclick = function () {
-            showUpdateNotification("⏬ 正在下载更新...", 'info', true);
-            window.voidAPI.downloadUpdate();
-            const newDiv = updateNotificationArea.querySelector('div');
-            if (newDiv) {
-                newDiv.onclick = null;
-                newDiv.style.cursor = 'default';
-            }
+        checkUpdateButton.onclick = () => {
+            window.voidAPI.openExternalLink('https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/latest');
         };
+        showUpdateNotification(`发现新版本 v${info.version}，点击打开下载页面`, 'available', true);
+        const notificationDiv = updateNotificationArea.querySelector('div');
+        if (notificationDiv) {
+            notificationDiv.style.cursor = 'pointer';
+            notificationDiv.onclick = () => {
+                window.voidAPI.openExternalLink('https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/latest');
+            };
+        }
     });
 
     window.voidAPI.onUpdateNotAvailable(() => {
         if (DEBUG) console.log('[Renderer] Already on latest version');
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
-        showUpdateNotification("✅ 已是最新版本", 'success', false);
+        checkUpdateButton.onclick = null;
+        showUpdateNotification("已是最新版本", 'success', false);
     });
 
-    window.voidAPI.onUpdateDownloadProgress((progressObj) => {
-        const percent = Math.floor(progressObj.percent);
-        const downloaded = Math.floor(progressObj.transferred / 1024 / 1024);
-        const total = Math.floor(progressObj.total / 1024 / 1024);
-        checkUpdateButton.textContent = `下载中 ${percent}%`;
-        showUpdateNotification(`⏬ 下载进度: ${percent}% (${downloaded}MB / ${total}MB)`, 'info', true);
-    });
-
-    window.voidAPI.onUpdateDownloaded(() => {
-        if (DEBUG) console.log('[Renderer] Update downloaded');
-        checkUpdateButton.disabled = false;
-        checkUpdateButton.textContent = '检查更新';
-        showUpdateNotification("✅ 更新已下载完成！点击此处重启以应用。", 'success', true);
-        const notificationDiv = updateNotificationArea.querySelector('div');
-        notificationDiv.style.cursor = 'pointer';
-        notificationDiv.onclick = function () {
-            window.voidAPI.quitAndInstall();
-        };
-    });
+    // 下载进度和下载完成事件不再需要（便携版无法自升级），保留空实现避免 electron-updater 报错
+    window.voidAPI.onUpdateDownloadProgress(() => {});
+    window.voidAPI.onUpdateDownloaded(() => {});
 
     window.voidAPI.onUpdateError((err) => {
         if (DEBUG) console.error('[Renderer] Update error:', err);
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
-        
-        // 提供更友好的错误信息
-        let errorMsg = '更新检查失败';
+        checkUpdateButton.onclick = null;
+        let errorMsg = '检查更新失败，请稍后重试';
         if (err && err.message) {
             if (err.code === 'TIMEOUT') {
-                errorMsg = '⚠️ 检查更新超时，请检查网络连接后重试';
+                errorMsg = '检查超时，请确认网络连接后重试';
             } else if (err.message.includes('ENOTFOUND') || err.message.includes('ETIMEDOUT')) {
-                errorMsg = '⚠️ 网络连接失败，请检查网络后重试';
-            } else if (err.message.includes('404')) {
-                errorMsg = '⚠️ 未找到更新文件，请稍后重试';
-            } else {
-                errorMsg = `⚠️ ${err.message}`;
+                errorMsg = '网络连接失败，请检查网络后重试';
+            } else if (err.message.includes('app-update.yml') || err.message.includes('ENOENT')) {
+                errorMsg = '更新配置缺失，请前往 GitHub 下载最新版';
             }
         }
         showUpdateNotification(errorMsg, 'error', false);
