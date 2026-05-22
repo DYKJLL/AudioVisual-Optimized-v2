@@ -1091,8 +1091,6 @@ try {
 } catch (e) {
   autoUpdater.logger = console;
 }
-  autoUpdater.logger = console;
-}
 
 let isUpdaterInitialized = false;
 let updateCheckTimeout = null;
