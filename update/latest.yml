@@ -1,8 +1,4 @@
-provider: generic
-url: https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/
-events:
-  - event: Update
-    version: 1.2.5
-    path: AudioVisual-1.2.5-V6-x64.exe
-    sha2: 8890aa44b37b272fb7b4c0cd1439a4730777050d0f9ce0440537f97c76684936
-    releaseDate: '2026-05-20T00:00:00Z'
+version: 1.2.5
+releaseDate: '2026-05-22T00:00:00Z'
+path: AudioVisual-1.2.5-x64.exe
+sha2: 8b8957a14e684fa8edd44670c42043e5b3cb4b00d2a5e09c6a0fa6d7ae110033

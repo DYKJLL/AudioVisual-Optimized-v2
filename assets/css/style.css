@@ -374,19 +374,25 @@ select:focus {
     background-color: var(--highlight-color);
 }
 
-/* --- Global Loading Overlay --- */
+/* --- Loading Overlay (unified below top-bar and sidebar) --- */
 #loading-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: var(--primary-bg);
+    top: clamp(50px, 7vh, 65px);
+    left: clamp(200px, 18vw, 280px);
+    right: 0;
+    bottom: 0;
+    background-color: rgba(30, 30, 47, 0.95);
+    backdrop-filter: blur(8px);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 9999;
-    transition: opacity 0.3s ease-in-out;
+    z-index: 1000;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease-in-out;
+    opacity: 1;
+}
+
+body.sidebar-collapsed #loading-overlay {
+    left: 0;
 }
 
 #loading-overlay.hidden {
@@ -413,12 +419,23 @@ select:focus {
     }
 }
 
+/* --- View Transition Customization --- */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+
+#update-toast-container {
+    position: relative;
+}
+
+/* --- Window Controls --- */
 .window-controls {
     display: flex;
     align-items: center;
     -webkit-app-region: no-drag;
     margin-left: auto;
-    /* 推到最右侧 */
     padding-left: 10px;
     flex-shrink: 0;
 }
@@ -430,11 +447,15 @@ select:focus {
     width: 36px;
     height: 36px;
     border-radius: var(--border-radius);
-    background: transparent;
+    background: transparent !important;
     border: none;
     color: var(--text-secondary-color);
     cursor: pointer;
     transition: all 0.2s ease;
+    padding: 0 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    font-weight: normal !important;
 }
 
 .window-control-button svg {
@@ -608,52 +629,6 @@ select:focus {
     color: var(--highlight-color);
     font-size: 1.1em;
 }
-
-/* --- Loading Overlay --- */
-#loading-overlay {
-    position: fixed;
-    top: clamp(50px, 7vh, 65px);
-    left: clamp(200px, 18vw, 280px);
-    right: 0;
-    bottom: 0;
-    background-color: rgba(30, 30, 47, 0.95);
-    backdrop-filter: blur(8px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease-in-out;
-    opacity: 1;
-}
-
-body.sidebar-collapsed #loading-overlay {
-    left: 0;
-}
-
-#loading-overlay.hidden {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.spinner {
-    border: 4px solid var(--accent-color);
-    border-top: 4px solid var(--highlight-color);
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
 
 /* --- View Transition Customization --- */
 ::view-transition-old(root),
@@ -839,7 +814,7 @@ body.sidebar-collapsed #quick-access-area {
 
 /* Brand Header */
 .settings-sidebar-header {
-    padding: 32px 24px 28px;
+    padding: 20px 24px;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -872,7 +847,7 @@ body.sidebar-collapsed #quick-access-area {
     align-items: center;
     justify-content: flex-start;
     gap: 12px;
-    padding: 11px 16px;
+    padding: 9px 16px;
     background: transparent;
     border: none;
     border-left: 3px solid transparent;
@@ -973,7 +948,7 @@ body.sidebar-collapsed #quick-access-area {
 }
 
 .settings-main-header {
-    padding: 32px 48px;
+    padding: 20px 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1018,7 +993,8 @@ body.sidebar-collapsed #quick-access-area {
 
 .settings-content-scroll {
     flex: 1;
-    padding: 36px 48px;
+    min-height: 0;
+    padding: 24px 48px;
     overflow-y: auto;
 }
 
@@ -1027,7 +1003,7 @@ body.sidebar-collapsed #quick-access-area {
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.04);
     overflow: hidden;
-    margin-bottom: 28px;
+    margin-bottom: 16px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 }
 
@@ -1055,11 +1031,12 @@ body.sidebar-collapsed #quick-access-area {
 
 textarea {
     width: 100% !important;
-    height: 400px !important;
+    height: 180px !important;
+    min-height: 100px !important;
     background: transparent !important;
     border: none !important;
     color: #d1d1e0 !important;
-    padding: 25px !important;
+    padding: 16px !important;
     font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
     font-size: 14px !important;
     line-height: 1.8 !important;

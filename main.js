@@ -267,7 +267,7 @@ const platformHomePages = [
 ];
 const dramaSites = [
   { url: 'https://monkey-flix.com/', name: '猴影工坊', timeout: 15000, retry: 2 },
-  { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 20000, retry: 3 },
+  { url: 'https://www.movie1080.xyz/', name: '影巢movie', timeout: 30000, retry: 3 },
   { url: 'https://www.letu.me/', name: '茉小影', timeout: 15000, retry: 2 },
   { url: 'https://www.ncat21.com/', name: '网飞猫', timeout: 15000, retry: 2 }
 ];
@@ -716,22 +716,30 @@ function createWindow() {
         }
       }, timeout);
       
+      view.webContents.loadURL(url);
+      if (DEBUG) console.log(`[Navigate] Loading URL: ${url} with timeout ${timeout}ms`);
+
+      // ✅ 在 loadURL 之后注册监听器，防止竞态漏报
       view.webContents.once('did-finish-load', () => {
         if (loadTimeoutId) clearTimeout(loadTimeoutId);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('load-finished');
         }
       });
-      
+
       view.webContents.once('did-fail-load', () => {
         if (loadTimeoutId) clearTimeout(loadTimeoutId);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('load-finished');
         }
       });
-      
-      view.webContents.loadURL(url);
-      if (DEBUG) console.log(`[Navigate] Loading URL: ${url} with timeout ${timeout}ms`);
+
+      loadTimeoutId = setTimeout(() => {
+        if (DEBUG) console.log(`[Navigate] Load timeout for ${url}, sending load-finished anyway`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('load-finished');
+        }
+      }, timeout);
       
       if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
         if (DEBUG) console.log('[Navigate] Extreme Speed: Early pulse for initial load:', url);
@@ -825,7 +833,33 @@ function createWindow() {
     });
     
     if (DEBUG) console.log(`[Reset Module] 🚀 Loading URL: ${url} (timeout: ${timeout}ms, heavy: ${isHeavySite})`);
+
     view.webContents.loadURL(url);
+
+    // ✅ 在 loadURL 之后注册监听器，防止页面在监听器注册前就加载完成导致竞态漏报
+    view.webContents.once('did-finish-load', () => {
+      if (loadTimeoutId) clearTimeout(loadTimeoutId);
+
+      if (DEBUG) console.log(`[Reset Module] ✅ Page loaded: ${url} (timeout=${hasTimedOut ? 'YES' : 'NO'})`);
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('load-finished');
+        mainWindow.webContents.send('module-loading-complete', { url });
+      }
+
+      injectThemeCss(view);
+      updateZoomFactor(view);
+    });
+
+    view.webContents.once('did-fail-load', (event, code, desc) => {
+      if (loadTimeoutId) clearTimeout(loadTimeoutId);
+      if (DEBUG) console.log(`[Reset Module] ❌ Failed to load: ${url} - ${desc}`);
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('load-finished');
+        mainWindow.webContents.send('module-loading-error', { url, error: desc });
+      }
+    });
   });
 
   ipcMain.on('go-back', () => {
@@ -1010,7 +1044,7 @@ const isAppPacked = app.isPackaged;
 // 使用 jsDelivr CDN 加速国内更新检查（generic provider）
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/'
+  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/update/'
 });
 
 // 配置 autoUpdater

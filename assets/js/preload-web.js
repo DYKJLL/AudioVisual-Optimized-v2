@@ -109,7 +109,7 @@ const DramaSiteOptimizer = {
   blockUnnecessaryResources() {
     if (!this.isDramaSite()) return;
     
-    console.log('[DramaOptimizer] �️ Initializing SAFE resource blocking...');
+    console.log('[DramaOptimizer] 🟢 Initializing SAFE resource blocking...');
     
     // ⚠️ 仅阻止明确已知的广告域名（不过度拦截）
     const blockedDomains = [
@@ -430,15 +430,28 @@ function startInjectionGuardian(url) {
           zIndex: '2147483647',
           background: '#000'
         });
-
-        // 成功注入后，如果是 Mango/Tencent 的某些顽固页面，5秒内降低频率，5秒后保持 250ms 监控位移
-        if (elapsed > 5000) {
-          clearInterval(currentGuardianInterval);
-          currentGuardianInterval = setInterval(() => startInjectionGuardian(url), 250);
-        }
       }
     }
-  }, 50); // 50ms 超高频探测
+  }, 50); // 50ms 高频探测，30秒后自动停止
+
+  // 指数退避：30秒后切换到低频监控（每5秒一次），防止长时间运行累积开销
+  setTimeout(() => {
+    if (currentGuardianInterval) {
+      clearInterval(currentGuardianInterval);
+    }
+    currentGuardianInterval = setInterval(() => {
+      // 轻声检查 iframe 是否还在
+      const iframe = document.getElementById('void-player-iframe');
+      if (iframe) {
+        const rect = iframe.getBoundingClientRect();
+        // 如果 iframe 被页面意外移走，重新注入
+        if (rect.width < 10 || rect.height < 10) {
+          startInjectionGuardian(url);
+        }
+      }
+    }, 5000);
+    console.log('[Guardian] Downgraded to 5s low-frequency monitoring.');
+  }, 30000);
 }
 
 // 核心：处理来自主进程的解析指令
