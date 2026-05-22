@@ -1076,12 +1076,14 @@ autoUpdater.setFeedURL({ provider: 'github' });
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 
-// 添加日志以便调试（如果 electron-log 可用）
+// 添加日志以便调试
 try {
   autoUpdater.logger = require('electron-log');
-  autoUpdater.logger.transports.file.level = 'info';
+  autoUpdater.logger.transports.file.level = 'debug';
+  autoUpdater.logger.transports.console.level = 'debug';
 } catch (e) {
-  // electron-log 不可用，使用 console
+  autoUpdater.logger = console;
+}
   autoUpdater.logger = console;
 }
 
@@ -1142,28 +1144,19 @@ function initializeAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    if (DEBUG) console.error('[AutoUpdater] Error:', err);
+    const errorMessage = err.message || err.toString();
+    const errorCode = err.code || '';
+    const errorStack = err.stack || '';
+    console.error('[AutoUpdater] Error:', errorMessage, 'Code:', errorCode, 'Stack:', errorStack);
     if (updateCheckTimeout) {
       clearTimeout(updateCheckTimeout);
       updateCheckTimeout = null;
     }
     if (mainWindow && !mainWindow.isDestroyed()) {
-      const errorMessage = err.message || err.toString();
-      const errorCode = err.code || '';
-      let friendlyMessage = '检查更新失败，请稍后重试';
-      if (errorCode === 'TIMEOUT' || errorMessage.includes('ETIMEDOUT')) {
-        friendlyMessage = '网络超时，请检查网络连接后重试';
-      } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('getaddrinfo')) {
-        friendlyMessage = '网络连接失败，请检查网络或开启代理';
-      } else if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
-        friendlyMessage = '更新配置获取失败，请前往 GitHub 下载最新版';
-      } else if (errorMessage.includes('sha')) {
-        friendlyMessage = '文件校验失败，请前往 GitHub 下载最新版';
-      }
       mainWindow.webContents.send('update-error', {
-        message: friendlyMessage,
+        message: errorMessage,
         code: errorCode,
-        originalMessage: errorMessage
+        originalMessage: errorMessage + (errorStack ? '\n' + errorStack : '')
       });
     }
   });

@@ -911,21 +911,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.voidAPI.onUpdateError((err) => {
-        if (DEBUG) console.error('[Renderer] Update error:', err);
+        console.error('[Renderer] Update error:', err);
         checkUpdateButton.disabled = false;
         checkUpdateButton.textContent = '检查更新';
         checkUpdateButton.onclick = null;
-        let errorMsg = '检查更新失败，请稍后重试';
-        if (err && err.message) {
-            if (err.code === 'TIMEOUT') {
-                errorMsg = '检查超时，请确认网络连接后重试';
-            } else if (err.message.includes('ENOTFOUND') || err.message.includes('ETIMEDOUT')) {
-                errorMsg = '网络连接失败，请检查网络后重试';
-            } else if (err.message.includes('app-update.yml') || err.message.includes('ENOENT')) {
-                errorMsg = '更新配置缺失，请前往 GitHub 下载最新版';
-            }
-        }
-        showUpdateNotification(errorMsg, 'error', false);
+        // 优先显示原始错误信息，便于定位问题
+        let errorMsg = err && (err.originalMessage || err.message || err.toString())
+          ? (err.originalMessage || err.message || err.toString())
+          : '检查更新失败，请稍后重试';
+        showUpdateNotification('❌ ' + errorMsg, 'error', false);
     });
 
     // 处理开发模式提示
