@@ -1,8 +1,8 @@
 version: 1.3.0
 files:
   - url: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.3.0/AudioVisual-1.3.0-x64.exe
-    sha512: fsVatXdQlFs9wy7peZxr5zcWrQMV/2a8ToZwImj2k+ab/QaKwZcTYEmDU22cBzlcuOqaLNLKZBmQAThGqdA8Fw==
-    size: 88895006
+    sha512: cdquTxnQdmUCtxi1sVlxXmXClXjSt6TNx6RSDk2bmMN2vgrbkpRIHZBvSEePDcZbps4CZJ1s4uoz0x/KkF4oTQ==
+    size: 88894967
 path: AudioVisual-1.3.0-x64.exe
-sha512: fsVatXdQlFs9wy7peZxr5zcWrQMV/2a8ToZwImj2k+ab/QaKwZcTYEmDU22cBzlcuOqaLNLKZBmQAThGqdA8Fw==
-releaseDate: '2026-05-22T16:08:21.182Z'
+sha512: cdquTxnQdmUCtxi1sVlxXmXClXjSt6TNx6RSDk2bmMN2vgrbkpRIHZBvSEePDcZbps4CZJ1s4uoz0x/KkF4oTQ==
+releaseDate: '2026-05-22T16:11:14.741Z'
