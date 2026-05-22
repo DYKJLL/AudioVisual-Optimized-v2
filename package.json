@@ -30,7 +30,7 @@
     "appId": "com.void.player",
     "publish": {
       "provider": "generic",
-      "url": "https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2/update/"
+      "url": "https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/"
     },
     "productName": "AudioVisual",
     "files": [

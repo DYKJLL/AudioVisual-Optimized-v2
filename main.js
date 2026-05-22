@@ -1041,11 +1041,15 @@ const { autoUpdater } = require('electron-updater');
 // 检测是否为开发模式（应用未打包）
 const isAppPacked = app.isPackaged;
 
-// 使用 jsDelivr CDN 镜像，国内无需代理即可访问 GitHub 资源
-// latest.yml 和 exe 文件均通过 jsDelivr 加速分发
+// 设置代理（electron-updater 读取 process.env.https_proxy）
+// Clash Verge 等代理软件默认监听 7897 端口
+process.env.https_proxy = 'http://127.0.0.1:7897';
+process.env.http_proxy = 'http://127.0.0.1:7897';
+
+// 使用 GitHub raw 直链，electron-updater 通过代理访问
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2/update/'
+  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update/'
 });
 
 // 配置 autoUpdater
