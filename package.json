@@ -42,17 +42,16 @@
       "update/**/*"
     ],
     "win": {
-      "target": {
-        "target": "portable",
-        "arch": [
-          "x64"
-        ]
-      },
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/images/icon-512.png",
       "requestedExecutionLevel": "asInvoker",
-      "verifyUpdateCodeSignature": false,
-      "signAndEditExecutable": false,
-      "publisherName": "AudioVisual",
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "mac": {

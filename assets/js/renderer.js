@@ -886,9 +886,29 @@ document.addEventListener('DOMContentLoaded', () => {
         showUpdateNotification("已是最新版本", 'success', false);
     });
 
-    // 下载进度和下载完成事件不再需要（便携版无法自升级），保留空实现避免 electron-updater 报错
-    window.voidAPI.onUpdateDownloadProgress(() => {});
-    window.voidAPI.onUpdateDownloaded(() => {});
+    // 下载进度：显示进度条和百分比
+    window.voidAPI.onUpdateDownloadProgress((progressObj) => {
+        const percent = Math.floor(progressObj.percent);
+        const downloaded = Math.floor(progressObj.transferred / 1024 / 1024);
+        const total = Math.floor(progressObj.total / 1024 / 1024);
+        checkUpdateButton.textContent = `下载中 ${percent}%`;
+        showUpdateNotification(`⏬ 下载进度: ${percent}% (${downloaded}MB / ${total}MB)`, 'info', true);
+    });
+
+    // 下载完成：提示用户重启以应用更新
+    window.voidAPI.onUpdateDownloaded(() => {
+        if (DEBUG) console.log('[Renderer] Update downloaded');
+        checkUpdateButton.disabled = false;
+        checkUpdateButton.textContent = '检查更新';
+        showUpdateNotification("✅ 更新已下载完成！点击此处重启应用以应用更新。", 'success', true);
+        const notificationDiv = updateNotificationArea.querySelector('div');
+        if (notificationDiv) {
+            notificationDiv.style.cursor = 'pointer';
+            notificationDiv.onclick = () => {
+                window.voidAPI.quitAndInstall();
+            };
+        }
+    });
 
     window.voidAPI.onUpdateError((err) => {
         if (DEBUG) console.error('[Renderer] Update error:', err);
