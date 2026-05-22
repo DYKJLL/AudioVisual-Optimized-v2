@@ -1094,12 +1094,12 @@ console.log('[AutoUpdater] 当前版本:', app.getVersion());
 console.log('[AutoUpdater] 是否打包:', isAppPacked);
 console.log('[AutoUpdater] 代理:', process.env.https_proxy);
 
-// 使用 generic provider，从 raw.githubusercontent.com 读取 latest.yml（避免 GitHub CDN 重定向问题）
-// latest.yml 必须提交到仓库根目录：https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/latest.yml
-// 文件中 url 字段指向 GitHub releases 直链（用户实测可用）
+// 使用 GitHub provider（electron-updater 自动从 GitHub Releases 获取版本信息和下载链接）
 autoUpdater.setFeedURL({
-  provider: 'generic',
-  url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/'
+  provider: 'github',
+  owner: 'DYKJLL',
+  repo: 'AudioVisual-Optimized-v2',
+  token: githubToken
 });
 
 // 配置 autoUpdater
