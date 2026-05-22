@@ -1046,26 +1046,33 @@ const isAppPacked = app.isPackaged;
 process.env.https_proxy = 'http://127.0.0.1:7897';
 process.env.http_proxy = 'http://127.0.0.1:7897';
 
-// GitHub token：优先从环境变量读取，fallback 到 electron-store 保存的值
+// 读取 GitHub token：优先级 env > electron-store > ~/.git-credentials
 let githubToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
 if (!githubToken) {
   try {
     const Store = require('electron-store');
-    const store = new Store();
-    githubToken = store.get('githubToken');
+    githubToken = new Store().get('githubToken');
   } catch (e) {}
 }
-// 若仍未获取到，从 git-credentials 文件读取（便携安全备份）
 if (!githubToken && isAppPacked) {
   try {
     const fs = require('fs');
-    const creds = fs.readFileSync(require('os').homedir() + '/.git-credentials', 'utf8');
+    const home = (require('os').homedir() || '').replace(/\\/g, '/');
+    const credPath = home + '/.git-credentials';
+    const creds = fs.readFileSync(credPath, 'utf8');
+    // 优先匹配 gho_ (新版 GitHub token)，忽略旧版 ghp_
     const match = creds.match(/gho_[a-zA-Z0-9]+/);
     if (match) githubToken = match[0];
-  } catch (e) {}
+    console.log('[AutoUpdater] Token 从 git-credentials 读取:', githubToken ? '成功' : '失败');
+  } catch (e) {
+    console.log('[AutoUpdater] Token 读取失败:', e.message, '路径:', require('os').homedir() + '/.git-credentials');
+  }
 }
 if (githubToken) {
   process.env.GH_TOKEN = githubToken;
+  console.log('[AutoUpdater] GitHub Token 已设置:', githubToken.substring(0, 8) + '***');
+} else {
+  console.log('[AutoUpdater] 警告: 未找到 GitHub Token，可能触发 API 限速');
 }
 
 // 使用 GitHub provider，electron-updater 自动从 GitHub Releases 获取版本信息和下载链接
