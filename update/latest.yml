@@ -1,8 +1,8 @@
-version: 1.2.6
+version: 1.2.7
 files:
-  - url: AudioVisual-1.2.6-x64.exe
-    sha512: VukPCnHtgY2ooaGWqNjrCyGj4GbuiX4xwBHDyOnr54oljvC8tpjTv4/Y5jKV1q/239KnvCG/3aAibCe8HLn4hA==
-    size: 88894560
-path: AudioVisual-1.2.6-x64.exe
-sha512: VukPCnHtgY2ooaGWqNjrCyGj4GbuiX4xwBHDyOnr54oljvC8tpjTv4/Y5jKV1q/239KnvCG/3aAibCe8HLn4hA==
-releaseDate: '2026-05-22T09:49:54.243Z'
+  - url: AudioVisual-1.2.7-x64.exe
+    sha512: UuWlOfXpqdrO094LwINr/R6K9SGvrNnMRhO+2U11HqO885kTo3GMR42wNVMOTny93wRoEPFkq/zrf0VHU3Az7A==
+    size: 88894690
+path: AudioVisual-1.2.7-x64.exe
+sha512: UuWlOfXpqdrO094LwINr/R6K9SGvrNnMRhO+2U11HqO885kTo3GMR42wNVMOTny93wRoEPFkq/zrf0VHU3Az7A==
+releaseDate: '2026-05-22T10:03:32.877Z'
