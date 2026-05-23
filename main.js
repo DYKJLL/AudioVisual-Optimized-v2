@@ -1034,7 +1034,7 @@ async function fetchLatestYml() {
         const text = await resp.text();
         const versionMatch = text.match(/^version:\s*(.+)$/m);
         const pathMatch = text.match(/^path:\s*(.+)$/m);
-        const urlMatch = text.match(/^\s+url:\s*(.+)$/m);
+        const urlMatch = text.match(/url:\s*(https?:\/\/.+)$/m);
         const shaMatch = text.match(/^sha512:\s*(.+)$/m);
         const sizeMatch = text.match(/^size:\s*(\d+)/m);
         const version = versionMatch ? versionMatch[1].trim() : null;
