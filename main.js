@@ -2,12 +2,23 @@
 
 const DEBUG = false; // 生产环境禁用所有 console 输出
 
+// ⚠️ 必须在所有 require 之前声明（TDZ 问题：electron-updater 等模块可能在加载时访问 app.isPackaged）
 const { app, screen, BrowserWindow, BrowserView, ipcMain, session, shell, dialog } = require('electron');
-
+const isAppPacked = app.isPackaged;
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const Store = require('electron-store');
+
+// GitHub releases URL（直连，无代理）
+const GH_VERSION = 'v1.3.1'; // 发版时改这里，下面的 URL 自动同步
+const GH_BASE = 'https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download';
+const GHPROXY_LATEST = `${GH_BASE}/${GH_VERSION}/latest.yml`;
+
+// --- Auto Updater 变量（必须在使用前声明）---
+let isUpdaterInitialized = false;
+let updateCheckTimeout = null;
 
 // ✅ === Settings Persistence System (v2.0) ===
 const settingsStore = new Store({
@@ -154,7 +165,10 @@ if (isDev) {
 }
 
 // --- Application Setup ---
-app.setPath('userData', path.join(__dirname, 'userData'));
+// ⚠️ 只在开发模式下才重定向 userData，打包后使用系统默认路径（%APPDATA%\AudioVisual）
+if (!app.isPackaged) {
+  app.setPath('userData', path.join(__dirname, 'userData'));
+}
 
 // --- Widevine CDM Injection ---
 function getWidevinePath() {
@@ -630,8 +644,8 @@ function createWindow() {
   mainWindow.setMenu(null);
 
   view = createNewBrowserView();
-  // mainWindow.setBrowserView(view); // Deferred to ready-to-show
-  // updateViewBounds(false); // Deferred to ready-to-show
+  mainWindow.setBrowserView(view); // Deferred to ready-to-show
+  updateViewBounds(false); // Deferred to ready-to-show
 
   ipcMain.on('minimize-window', () => mainWindow.minimize());
   ipcMain.on('maximize-window', () => {
@@ -956,16 +970,7 @@ app.whenReady().then(async () => {
     callback({ responseHeaders: details.responseHeaders });
   });
 
-  // 配置 Electron session 代理（优先于 process.env，用于 electron-updater 和所有网络请求）
-  const proxyUrl = 'http://127.0.0.1:7897';
-  session.defaultSession.setProxy({
-    proxyRules: proxyUrl,
-    proxyBypassRules: '<local>'
-  }).then(() => {
-    console.log('[Proxy] Session proxy configured:', proxyUrl);
-  }).catch(err => {
-    console.error('[Proxy] Failed to set session proxy:', err.message);
-  });
+  // ghproxy 可直接访问，electron-updater 无需额外代理配置
 
   const cacheInfoPath = path.join(app.getPath('userData'), 'cache_info.json');
   const twentyFourHours = 24 * 60 * 60 * 1000;
@@ -1002,7 +1007,7 @@ app.whenReady().then(async () => {
     preloadAllSites().catch(err => console.error('[Preload] Background preload error:', err));
   }, 100);
 
-  // Initialize auto updater after window is ready
+  // Initialize auto updater（启动时不做自动检查，等待用户手动点击）
   initializeAutoUpdater();
 });
 
@@ -1034,22 +1039,151 @@ app.on('window-all-closed', () => {
 ipcMain.on('open-external-link', (event, url) => {
   shell.openExternal(url);
 });
-ipcMain.on('check-for-updates', () => {
-  checkUpdate();
+ipcMain.handle('fetch-latest-version', async () => {
+  // 使用 Electron net.fetch（主进程，不受 CSP 限制）
+  const { net } = require('electron');
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const response = await net.fetch(GHPROXY_LATEST, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (response.ok) {
+      const text = await response.text();
+      const m = text.match(/^version:\s*(.+)$/m);
+      return { version: m ? m[1].trim() : null };
+    }
+    return { error: 'http_' + response.status };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+ipcMain.handle('check-for-updates', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-checking');
+  }
+  const currentVersion = app.getVersion();
+  console.log('[AutoUpdater] 检查更新，当前版本:', currentVersion);
+  if (!isAppPacked) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-dev-mode', { message: '开发模式下无法检查更新。', version: currentVersion });
+    }
+    return { devMode: true };
+  }
+  const { net } = require('electron');
+  let result;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await net.fetch(GHPROXY_LATEST, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (resp.ok) {
+      const text = await resp.text();
+      const m = text.match(/^version:\s*(.+)$/m);
+      result = { version: m ? m[1].trim() : null };
+    } else {
+      result = { error: 'http_' + resp.status };
+    }
+  } catch(e) { result = { error: e.message }; }
+  console.log('[AutoUpdater] fetch 结果:', JSON.stringify(result));
+  if (result.error) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-error', { message: '网络错误: ' + result.error, code: 'NETWORK_ERROR' });
+    }
+    return result;
+  }
+  const remoteVersion = result.version;
+  if (!remoteVersion) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-error', { message: '解析更新信息失败', code: 'PARSE_ERROR' });
+    }
+    return { error: 'parse_error' };
+  }
+  const needsUpdate = compareVersions(remoteVersion, currentVersion) > 0;
+  console.log('[AutoUpdater] 远程版本:', remoteVersion, '需更新:', needsUpdate);
+  if (needsUpdate) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', { version: remoteVersion, currentVersion: currentVersion });
+    }
+  } else {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-not-available', { version: currentVersion });
+    }
+  }
+  return { version: remoteVersion, needsUpdate };
 });
 
 ipcMain.on('download-update', () => {
-  autoUpdater.downloadUpdate();
+  downloadUpdateFile();
 });
+
+// 下载并安装新版本（使用 Electron 内置下载，Chromium 网络栈）
+function downloadUpdateFile() {
+  const ver = GH_VERSION.replace(/^v/, ''); // v1.3.0 → 1.3.0
+  const exeName = 'AudioVisual-' + ver + '-x64.exe';
+  const exeUrl = GHPROXY_LATEST.replace('/latest.yml', '/' + exeName);
+  const exePath = path.join(app.getPath('temp'), exeName);
+
+  console.log('[AutoUpdater] 开始下载:', exeUrl);
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    console.error('[AutoUpdater] 主窗口不存在');
+    return;
+  }
+
+  // 使用 Electron 内置下载（Chromium 网络栈，更可靠）
+  mainWindow.webContents.downloadURL(exeUrl);
+
+  mainWindow.webContents.session.on('will-download', (event, item) => {
+    console.log('[AutoUpdater] 下载开始，文件:', item.getFilename(), '大小:', item.getTotalBytes());
+    item.setSavePath(exePath);
+
+    item.on('updated', (event, state) => {
+      if (state === 'progressing') {
+        const pct = item.getTotalBytes() > 0
+          ? Math.floor((item.getReceivedBytes() / item.getTotalBytes()) * 100)
+          : 0;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-download-progress', {
+            percent: pct,
+            transferred: item.getReceivedBytes(),
+            total: item.getTotalBytes()
+          });
+        }
+      }
+    });
+
+    item.on('done', (event, state) => {
+      if (state === 'completed') {
+        console.log('[AutoUpdater] 下载完成:', exePath);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-downloaded', { path: exePath });
+        }
+        // 自动启动安装程序
+        setTimeout(() => {
+          console.log('[AutoUpdater] 启动安装程序...');
+          shell.openPath(exePath);
+          app.quit();
+        }, 2000);
+      } else {
+        console.error('[AutoUpdater] 下载失败 state:', state);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-error', {
+            message: '下载失败: ' + state,
+            code: 'DOWNLOAD_' + state.toUpperCase()
+          });
+        }
+      }
+    });
+  });
+}
 
 ipcMain.on('quit-and-install', () => {
   autoUpdater.quitAndInstall();
 });
 
-// 设置代理（electron-updater 读取 process.env.https_proxy）
-// Clash Verge 默认监听 http://127.0.0.1:7897
-process.env.https_proxy = 'http://127.0.0.1:7897';
-process.env.http_proxy = 'http://127.0.0.1:7897';
+// 注意：不再为 electron-updater 设置 https_proxy
+// GitHub 直连 URL，无需代理（国内可直接访问）
+// 如果需要通过代理访问 GitHub（上传发布等），请在 ~/.git-credentials 中配置 token
 
 // 读取 GitHub token：优先级 env > electron-store > ~/.git-credentials
 let githubToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
@@ -1081,39 +1215,20 @@ if (githubToken) {
   console.log('[AutoUpdater] 警告: 未找到 GitHub Token，可能触发 API 限速');
 }
 
-let isUpdaterInitialized = false;
-let updateCheckTimeout = null;
-
 // --- Auto Updater ---
-const { autoUpdater } = require('electron-updater');
 
 // 检测是否为开发模式（应用未打包）
-const isAppPacked = app.isPackaged;
+// isAppPacked moved to top
 
 console.log('[AutoUpdater] 当前版本:', app.getVersion());
 console.log('[AutoUpdater] 是否打包:', isAppPacked);
 console.log('[AutoUpdater] 代理:', process.env.https_proxy);
 
-// 使用 GitHub provider（electron-updater 自动从 GitHub Releases 获取版本信息和下载链接）
-autoUpdater.setFeedURL({
-  provider: 'github',
-  owner: 'DYKJLL',
-  repo: 'AudioVisual-Optimized-v2',
-  token: githubToken
-});
-
-// 配置 autoUpdater
+// electron-updater 的 setFeedURL 不再使用（latest.yml 和 exe 下载改用 Node.js 原生 HTTP）
+// autoUpdater 只用于 quitAndInstall()
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
-
-// 添加日志以便调试
-try {
-  autoUpdater.logger = require('electron-log');
-  autoUpdater.logger.transports.file.level = 'debug';
-  autoUpdater.logger.transports.console.level = 'debug';
-} catch (e) {
-  autoUpdater.logger = console;
-}
+autoUpdater.logger = console;
 
 function initializeAutoUpdater() {
   if (isUpdaterInitialized) {
@@ -1188,66 +1303,15 @@ function initializeAutoUpdater() {
   console.log('[AutoUpdater] 初始化完成');
 }
 
-function checkUpdate() {
-  if (!isUpdaterInitialized) {
-    initializeAutoUpdater();
+// 简单的语义化版本比较，返回正数表示 v1 > v2
+function compareVersions(v1, v2) {
+  const parts1 = v1.replace(/^v/, '').split('.').map(p => parseInt(p, 10) || 0);
+  const parts2 = v2.replace(/^v/, '').split('.').map(p => parseInt(p, 10) || 0);
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
   }
-
-  // 清除之前的超时定时器
-  if (updateCheckTimeout) {
-    clearTimeout(updateCheckTimeout);
-    updateCheckTimeout = null;
-  }
-
-  console.log('[AutoUpdater] 开始检查更新，当前版本:', app.getVersion());
-  console.log('[AutoUpdater] Feed URL:', autoUpdater.getFeedURL?.());
-
-  // 开发模式下的特殊处理
-  if (!isAppPacked) {
-    console.log('[AutoUpdater] 开发模式，跳过更新检查');
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      setTimeout(() => {
-        mainWindow.webContents.send('update-dev-mode', {
-          message: '开发模式下无法检查更新。\n请使用打包后的应用程序进行更新检查。',
-          version: app.getVersion()
-        });
-      }, 500);
-    }
-    return;
-  }
-
-  // 设置30秒超时，防止一直卡住
-  updateCheckTimeout = setTimeout(() => {
-    console.error('[AutoUpdater] 检查更新超时');
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-error', {
-        message: '检查更新超时，请检查网络连接或稍后重试。',
-        code: 'TIMEOUT'
-      });
-    }
-  }, 30000);
-
-  console.log('[AutoUpdater] 调用 checkForUpdates...');
-  autoUpdater.checkForUpdates()
-    .then(result => {
-      console.log('[AutoUpdater] checkForUpdates 返回:', result);
-      if (updateCheckTimeout) {
-        clearTimeout(updateCheckTimeout);
-        updateCheckTimeout = null;
-      }
-    })
-    .catch(err => {
-      console.error('[AutoUpdater] checkForUpdates 失败:', err.message, 'Code:', err.code);
-      if (updateCheckTimeout) {
-        clearTimeout(updateCheckTimeout);
-        updateCheckTimeout = null;
-      }
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update-error', {
-          message: err.message || '检查更新失败，请检查网络连接或稍后重试。',
-          code: err.code || '',
-          originalMessage: (err.message || '') + (err.stack ? '\n' + err.stack : '')
-        });
-      }
-    });
+  return 0;
 }
