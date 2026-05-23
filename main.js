@@ -1117,13 +1117,13 @@ function getAppInstallDir() {
 // 使用 PowerShell 解压 zip 到目标目录（支持覆盖）
 function extractZip(zipPath, targetDir) {
   return new Promise((resolve, reject) => {
+    // Expand-Archive -Force 支持覆盖，且对锁文件的处理更健壮
     const psCmd = `
       try {
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath.replace(/'/g, "''")}', '${targetDir.replace(/'/g, "''")}', $true)
+        Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${targetDir.replace(/'/g, "''")}' -Force -ErrorAction Stop
         Write-Host "EXTRACT_OK"
       } catch {
-        Write-Host "EXTRACT_FAIL:$_"
+        Write-Host "EXTRACT_FAIL:$($_.Exception.Message)"
       }
     `;
     const cp = require('child_process');
@@ -1139,16 +1139,60 @@ function extractZip(zipPath, targetDir) {
   });
 }
 
+// 安装更新：杀进程 → 等待退出 → 解压 → 重启
+function installUpdate(downloadPath, appDir) {
+  const exePath = process.execPath;
+  const selfName = path.basename(exePath);
+
+  const psScript = `
+    param([string]$ZipPath, [string]$TargetDir, [string]$ExePath, [string]$AppName)
+    # 杀掉所有运行中的实例
+    Get-Process -Name $AppName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 800
+    # 解压覆盖
+    try {
+      Expand-Archive -LiteralPath $ZipPath -DestinationPath $TargetDir -Force -ErrorAction Stop
+      Write-Host "EXTRACT_OK"
+      # 等待一会儿再启动
+      Start-Sleep -Milliseconds 500
+      Start-Process -FilePath $ExePath
+    } catch {
+      Write-Host "INSTALL_FAIL:$($_.Exception.Message)"
+    }
+  `;
+
+  const cp = require('child_process');
+  const scriptPath = path.join(app.getPath('temp'), 'install-update.ps1');
+  fs.writeFileSync(scriptPath, psScript, 'utf8');
+
+  cp.exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -ZipPath "${downloadPath}" -TargetDir "${appDir}" -ExePath "${exePath}" -AppName "${path.basename(exePath, '.exe')}"`, {
+    timeout: 120000
+  }, (err, stdout) => {
+    fs.unlinkSync(scriptPath);
+    if (stdout && stdout.includes('EXTRACT_OK')) {
+      console.log('[AutoUpdater] 安装完成');
+    } else {
+      console.error('[AutoUpdater] 安装失败:', stdout || err && err.message);
+    }
+  });
+}
+
 // 下载并安装新版本 — 下载 → 解压覆盖 → 重启
 function downloadUpdateFile() {
   if (!pendingUpdateInfo) {
     console.error('[AutoUpdater] 没有更新信息，请先检查更新');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-error', { message: '没有更新信息，请先检查更新', code: 'NO_INFO' });
+    }
     return;
   }
 
   const downloadUrl = pendingUpdateInfo.fileUrl;
   if (!downloadUrl) {
     console.error('[AutoUpdater] 下载地址为空');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-error', { message: '下载地址为空', code: 'NO_URL' });
+    }
     return;
   }
   const fileName = path.basename(downloadUrl);
@@ -1161,8 +1205,7 @@ function downloadUpdateFile() {
     return;
   }
 
-  mainWindow.webContents.downloadURL(downloadUrl);
-
+  // ✅ 先注册事件监听器，再调用 downloadURL（避免事件丢失）
   mainWindow.webContents.session.on('will-download', (event, item) => {
     console.log('[AutoUpdater] 下载开始，文件:', item.getFilename(), '大小:', item.getTotalBytes());
     item.setSavePath(downloadPath);
@@ -1191,39 +1234,27 @@ function downloadUpdateFile() {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('update-downloaded', { path: downloadPath, installDir: appDir });
         }
-        // 自动解压覆盖安装
-        setTimeout(async () => {
-          try {
-            console.log('[AutoUpdater] 开始解压覆盖安装...');
-            await extractZip(downloadPath, appDir);
-            console.log('[AutoUpdater] 安装完成，重启应用...');
-            app.relaunch();
-            app.quit();
-          } catch (err) {
-            console.error('[AutoUpdater] 安装失败:', err.message);
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('update-error', {
-                message: '安装失败: ' + err.message,
-                code: 'INSTALL_ERROR'
-              });
-            }
-          }
-        }, 1500);
+        // ✅ 使用独立脚本安装（杀进程→等待→解压→启动）
+        installUpdate(downloadPath, appDir);
       } else {
         console.error('[AutoUpdater] 下载失败 state:', state);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('update-error', {
             message: '下载失败: ' + state,
-            code: 'DOWNLOAD_' + state.toUpperCase()
+            code: 'DOWNLOAD_' + (state || 'UNKNOWN').toUpperCase()
           });
         }
       }
     });
   });
+
+  // ✅ downloadURL 必须在监听器注册之后调用
+  mainWindow.webContents.downloadURL(downloadUrl);
 }
 
 ipcMain.on('quit-and-install', () => {
-  autoUpdater.quitAndInstall();
+  // 安装已在下载完成后通过 installUpdate 处理，这里只退出进程
+  app.quit();
 });
 
 // 注意：不再为 electron-updater 设置 https_proxy
