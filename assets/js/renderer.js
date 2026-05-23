@@ -930,53 +930,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showUpdateNotification(`ℹ️ ${info.message}\n当前版本：v${info.version}`, 'info', false);
     });
 
-    // --- ✅ Optimized Sidebar Auto-Scaling (v2.0) ---
-    const sidebar = document.querySelector('.sidebar');
-    const sidebarScaler = document.querySelector('.sidebar-scaler');
-
-    if (sidebar && sidebarScaler) {
-      let scaleUpdatePending = false; // Prevent re-entry
-      
-      const updateSidebarScale = () => {
-        if (scaleUpdatePending) return; // Skip if already pending
-        
-        const idealHeight = sidebarScaler.scrollHeight;
-        const availableHeight = sidebar.clientHeight;
-        const verticalPadding = parseFloat(getComputedStyle(sidebarScaler).paddingTop) + parseFloat(getComputedStyle(sidebarScaler).paddingBottom);
-        const effectiveAvailableHeight = availableHeight - verticalPadding;
-
-        if (idealHeight > effectiveAvailableHeight + 2) {
-          const scale = effectiveAvailableHeight / idealHeight;
-          sidebarScaler.style.transform = `scale(${scale})`;
-        } else {
-          sidebarScaler.style.transform = 'scale(1)';
-        }
-        
-        scaleUpdatePending = false;
-      };
-
-      // Use requestAnimationFrame for batching
-      const debouncedScaleUpdate = () => {
-        if (!scaleUpdatePending) {
-          scaleUpdatePending = true;
-          requestAnimationFrame(updateSidebarScale);
-        }
-      };
-
-      const resizeObserver = new ResizeObserver(debouncedScaleUpdate);
-      resizeObserver.observe(sidebar);
-
-      // ✅ Removed attributes: true to prevent self-triggering loops
-      const mutationObserver = new MutationObserver(debouncedScaleUpdate);
-      mutationObserver.observe(sidebarScaler, { 
-        childList: true, 
-        subtree: true,
-        attributes: false // Don't observe style changes (prevents infinite loop)
-      });
-
-      setTimeout(debouncedScaleUpdate, 100);
-    }
-
     if (DEBUG) console.log('[Init] ✅ Initialization complete');
 });
 

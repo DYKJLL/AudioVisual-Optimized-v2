@@ -65,21 +65,34 @@ body.sidebar-collapsed .sidebar {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    transform-origin: top;
-    transition: transform 0.15s ease-out;
-    padding: 2.5vh 20px 5px;
+    padding: 1.5vh 16px 12px;
     width: clamp(200px, 18vw, 280px);
     box-sizing: border-box;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.sidebar-scaler::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar-scaler::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-scaler::-webkit-scrollbar-thumb {
+    background-color: var(--accent-color);
+    border-radius: 4px;
 }
 
 .logo {
     font-family: var(--font-family);
     text-align: center;
     color: var(--highlight-color);
-    margin-bottom: clamp(15px, 4vh, 40px);
-    margin-top: clamp(5px, 2vh, 15px);
+    margin-bottom: clamp(10px, 2vh, 20px);
+    margin-top: clamp(3px, 1vh, 8px);
     font-weight: 600;
-    font-size: clamp(18px, 3vh, 24px);
+    font-size: clamp(16px, 2.5vh, 22px);
     letter-spacing: 1px;
     -webkit-app-region: no-drag;
     display: flex;
@@ -95,7 +108,7 @@ body.sidebar-collapsed .sidebar {
 }
 
 .control-group {
-    margin-bottom: clamp(15px, 2.5vh, 25px);
+    margin-bottom: clamp(8px, 1.5vh, 16px);
     position: relative;
     flex-shrink: 0;
 }
@@ -186,8 +199,8 @@ select:focus {
 }
 
 .usage-tips {
-    margin-top: clamp(15px, 2.5vh, 25px);
-    padding: clamp(10px, 2vh, 15px);
+    margin-top: clamp(8px, 1.5vh, 16px);
+    padding: clamp(8px, 1.2vh, 12px);
     background-color: var(--accent-color);
     border-radius: var(--border-radius);
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
@@ -195,8 +208,8 @@ select:focus {
 
 .usage-tips h4 {
     color: var(--highlight-color);
-    font-size: clamp(14px, 2vh, 16px);
-    margin-bottom: clamp(10px, 1.8vh, 15px);
+    font-size: clamp(12px, 1.6vh, 14px);
+    margin-bottom: clamp(6px, 1vh, 10px);
     text-align: center;
 }
 
@@ -206,12 +219,12 @@ select:focus {
 }
 
 .usage-tips li {
-    font-size: clamp(12px, 1.6vh, 14px);
+    font-size: clamp(10px, 1.3vh, 12px);
     color: var(--text-secondary-color);
-    margin-bottom: clamp(8px, 1.5vh, 12px);
-    line-height: 1.6;
+    margin-bottom: clamp(4px, 0.8vh, 8px);
+    line-height: 1.4;
     position: relative;
-    padding-left: 15px;
+    padding-left: 12px;
 }
 
 .usage-tips li::before {
@@ -231,7 +244,7 @@ select:focus {
 .footer {
     text-align: center;
     margin-top: auto;
-    padding-top: clamp(5px, 1.5vh, 15px);
+    padding-top: clamp(3px, 0.8vh, 8px);
     -webkit-app-region: no-drag;
     flex-shrink: 0;
 }
@@ -644,42 +657,42 @@ body.sidebar-collapsed #loading-overlay {
 /* --- SMART LAYOUT FOR SMALL WINDOWS --- */
 @media (max-height: 780px) {
     .sidebar-scaler {
-        padding: 3vh 15px 5px;
+        padding: 1.5vh 12px 3px;
     }
 
     .logo {
-        margin-bottom: 10px;
-        margin-top: 5px;
+        margin-bottom: 6px;
+        margin-top: 3px;
     }
 
     .control-group {
-        margin-bottom: 10px;
+        margin-bottom: 6px;
     }
 
     .usage-tips,
     .drama-usage-tips {
-        margin-top: 10px;
-        padding: 10px;
+        margin-top: 6px;
+        padding: 6px;
     }
 
     .usage-tips li,
     .drama-usage-tips li {
-        margin-bottom: 5px;
+        margin-bottom: 3px;
     }
 
     .footer {
-        padding-top: 5px;
+        padding-top: 3px;
     }
 
     #update-toast-container {
-        margin-bottom: 5px !important;
+        margin-bottom: 3px !important;
     }
 }
 
 /* --- SMART LAYOUT FOR NARROW WINDOWS --- */
 @media (max-width: 1020px) {
     .sidebar-scaler {
-        padding: 3vh 10px 5px;
+        padding: 1.5vh 8px 3px;
     }
 }
 
