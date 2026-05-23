@@ -1,11 +1,8 @@
-provider: generic
-url: https://gh.llkk.cc/https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.3.0/
-updaterCacheDirName: audiovisual-update
----
-version: 1.3.0
+version: 1.3.3
 files:
-  - path: AudioVisual-1.3.0-x64.exe
-    sha512: cdquTxnQdmUCtxi1sVlxXmXClXjSt6TNx6RSDk2bmMN2vgrbkpRIHZBvSEePDcZbps4CZJ1s4uoz0x/KkF4oTQ==
-    size: 88894967
-sha512: cdquTxnQdmUCtxi1sVlxXmXClXjSt6TNx6RSDk2bmMN2vgrbkpRIHZBvSEePDcZbps4CZJ1s4uoz0x/KkF4oTQ==
-releaseDate: '2026-05-22T16:17:38.503Z'
+  - url: AudioVisual-1.3.3-x64.zip
+    sha512: 3287CFC51E173BDA26F09665703B5F046514BCEA18E13D8EDDEC19CDD619DFDCABB6F91A4EF4F8CCDC20A21629AE1795C8CE7B0D6A1CDB622890A98035A8ABC7
+    size: 123628401
+path: AudioVisual-1.3.3-x64.zip
+sha512: 3287CFC51E173BDA26F09665703B5F046514BCEA18E13D8EDDEC19CDD619DFDCABB6F91A4EF4F8CCDC20A21629AE1795C8CE7B0D6A1CDB622890A98035A8ABC7
+releaseDate: '2026-05-24T15:55:00.000Z'
