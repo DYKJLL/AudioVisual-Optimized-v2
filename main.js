@@ -12,7 +12,7 @@ const os = require('os');
 const Store = require('electron-store');
 
 // GitHub releases URL（直连，无代理）
-const GH_VERSION = 'v1.3.4'; // 发版时改这里，下面的 URL 自动同步
+const GH_VERSION = 'v1.3.5'; // 发版时改这里，下面的 URL 自动同步
 const GH_BASE = 'https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download';
 
 // 国内可用更新源（按优先级）：raw.githubusercontent.com > jsdelivr CDN > ghproxy 镜像
