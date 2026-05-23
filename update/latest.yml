@@ -1,3 +1,12 @@
 provider: generic
-url: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.3.0/
+url: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.3.4/
 updaterCacheDirName: audiovisual-update
+---
+version: 1.3.4
+files:
+  - url: https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download/v1.3.4/AudioVisual-1.3.4-x64.zip
+    sha512: 4D3C0BB084BA77960A2C9DC2CFF8D83BA186C9FB1CAFB2CC31AE2C2197E5B1C83EB6CA1B8E3D83785B114CE5F42254647275C3134F99FFFF243424238293B916
+    size: 123696098
+path: AudioVisual-1.3.4-x64.zip
+sha512: 4D3C0BB084BA77960A2C9DC2CFF8D83BA186C9FB1CAFB2CC31AE2C2197E5B1C83EB6CA1B8E3D83785B114CE5F42254647275C3134F99FFFF243424238293B916
+releaseDate: '2026-05-24T00:00:00.000Z'

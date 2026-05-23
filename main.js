@@ -12,9 +12,18 @@ const os = require('os');
 const Store = require('electron-store');
 
 // GitHub releases URL（直连，无代理）
-const GH_VERSION = 'v1.3.3'; // 发版时改这里，下面的 URL 自动同步
+const GH_VERSION = 'v1.3.4'; // 发版时改这里，下面的 URL 自动同步
 const GH_BASE = 'https://github.com/DYKJLL/AudioVisual-Optimized-v2/releases/download';
-const GHPROXY_LATEST = `${GH_BASE}/${GH_VERSION}/latest.yml`;
+
+// 国内可用更新源（按优先级）：raw.githubusercontent.com > jsdelivr CDN > ghproxy 镜像
+const UPDATE_MIRRORS = [
+  { label: 'GitHub Raw', url: 'https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update' },
+  { label: 'jsDelivr CDN', url: 'https://cdn.jsdelivr.net/gh/DYKJLL/AudioVisual-Optimized-v2@master/update' },
+  { label: 'GitHub Proxy', url: 'https://ghproxy.net/https://raw.githubusercontent.com/DYKJLL/AudioVisual-Optimized-v2/master/update' }
+];
+// GHPROXY_LATEST 指向 latest.yml（用于检查更新）
+const GHPROXY_LATEST = `${UPDATE_MIRRORS[0].url}/latest.yml`;
+const RAW_UPDATE_BASE = UPDATE_MIRRORS[0].url;
 
 // --- Auto Updater 变量（必须在使用前声明）---
 let isUpdaterInitialized = false;
@@ -476,8 +485,8 @@ function attachViewEvents(targetView) {
     if (view !== targetView) return;
     if (mainWindow && !mainWindow.isDestroyed() && targetView && targetView.webContents && !targetView.webContents.isDestroyed()) {
       const navState = {
-        canGoBack: targetView.webContents.canGoBack(),
-        canGoForward: targetView.webContents.canGoForward()
+        canGoBack: targetView.webContents.navigationHistory.canGoBack(),
+        canGoForward: targetView.webContents.navigationHistory.canGoForward()
       };
       mainWindow.webContents.send('nav-state-updated', navState);
     }
@@ -714,8 +723,8 @@ function createWindow() {
     mainWindow.setBrowserView(view);
     updateViewBounds(true);
 
-    if (clearHistory && view.webContents.clearHistory) {
-      view.webContents.clearHistory();
+    if (clearHistory && view.webContents.navigationHistory && view.webContents.navigationHistory.clear) {
+      view.webContents.navigationHistory.clear();
       if (DEBUG) console.log(`[Navigate] History cleared for ${url}`);
     }
 
@@ -748,13 +757,6 @@ function createWindow() {
         }
       });
 
-      loadTimeoutId = setTimeout(() => {
-        if (DEBUG) console.log(`[Navigate] Load timeout for ${url}, sending load-finished anyway`);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('load-finished');
-        }
-      }, timeout);
-      
       if ((url.includes('iqiyi.com/v_') || url.includes('mgtv.com/b/') || url.includes('v.qq.com/x/cover/')) && mainWindow) {
         if (DEBUG) console.log('[Navigate] Extreme Speed: Early pulse for initial load:', url);
         mainWindow.webContents.send('fast-parse-url', url);
@@ -781,8 +783,8 @@ function createWindow() {
       view.webContents.stop();
       view.webContents.setAudioMuted(true);
       
-      if (view.webContents.clearHistory) {
-        view.webContents.clearHistory();
+      if (view.webContents.navigationHistory && view.webContents.navigationHistory.clear) {
+        view.webContents.navigationHistory.clear();
       }
       
       mainWindow.removeBrowserView(view);
@@ -849,38 +851,13 @@ function createWindow() {
     if (DEBUG) console.log(`[Reset Module] 🚀 Loading URL: ${url} (timeout: ${timeout}ms, heavy: ${isHeavySite})`);
 
     view.webContents.loadURL(url);
-
-    // ✅ 在 loadURL 之后注册监听器，防止页面在监听器注册前就加载完成导致竞态漏报
-    view.webContents.once('did-finish-load', () => {
-      if (loadTimeoutId) clearTimeout(loadTimeoutId);
-
-      if (DEBUG) console.log(`[Reset Module] ✅ Page loaded: ${url} (timeout=${hasTimedOut ? 'YES' : 'NO'})`);
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('load-finished');
-        mainWindow.webContents.send('module-loading-complete', { url });
-      }
-
-      injectThemeCss(view);
-      updateZoomFactor(view);
-    });
-
-    view.webContents.once('did-fail-load', (event, code, desc) => {
-      if (loadTimeoutId) clearTimeout(loadTimeoutId);
-      if (DEBUG) console.log(`[Reset Module] ❌ Failed to load: ${url} - ${desc}`);
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('load-finished');
-        mainWindow.webContents.send('module-loading-error', { url, error: desc });
-      }
-    });
   });
 
   ipcMain.on('go-back', () => {
-    if (view && view.webContents.canGoBack()) view.webContents.goBack();
+    if (view && view.webContents.navigationHistory.canGoBack()) view.webContents.goBack();
   });
   ipcMain.on('go-forward', () => {
-    if (view && view.webContents.canGoForward()) view.webContents.goForward();
+    if (view && view.webContents.navigationHistory.canGoForward()) view.webContents.goForward();
   });
 
   ipcMain.on('proactive-parse-request', (event, url) => {
@@ -1039,24 +1016,59 @@ app.on('window-all-closed', () => {
 ipcMain.on('open-external-link', (event, url) => {
   shell.openExternal(url);
 });
-ipcMain.handle('fetch-latest-version', async () => {
-  // 使用 Electron net.fetch（主进程，不受 CSP 限制）
+// 存储从 latest.yml 解析出的更新信息
+let pendingUpdateInfo = null;
+
+// 尝试从多个镜像源获取 latest.yml（国内网络可用）
+async function fetchLatestYml() {
   const { net } = require('electron');
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const response = await net.fetch(GHPROXY_LATEST, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (response.ok) {
-      const text = await response.text();
-      const m = text.match(/^version:\s*(.+)$/m);
-      return { version: m ? m[1].trim() : null };
+  let lastError = '';
+  for (const mirror of UPDATE_MIRRORS) {
+    const url = `${mirror.url}/latest.yml`;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      const resp = await net.fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (resp.ok) {
+        const text = await resp.text();
+        const versionMatch = text.match(/^version:\s*(.+)$/m);
+        const pathMatch = text.match(/^path:\s*(.+)$/m);
+        const urlMatch = text.match(/^\s+url:\s*(.+)$/m);
+        const shaMatch = text.match(/^sha512:\s*(.+)$/m);
+        const sizeMatch = text.match(/^size:\s*(\d+)/m);
+        const version = versionMatch ? versionMatch[1].trim() : null;
+        if (version) {
+          console.log(`[AutoUpdater] ✅ ${mirror.label} 成功，版本: ${version}`);
+          return {
+            version,
+            filePath: pathMatch ? pathMatch[1].trim() : null,
+            fileUrl: urlMatch ? urlMatch[1].trim() : null,
+            sha512: shaMatch ? shaMatch[1].trim() : null,
+            size: sizeMatch ? parseInt(sizeMatch[1]) : 0,
+            sourceMirror: mirror.url
+          };
+        }
+        lastError = 'VERSION_NOT_FOUND';
+        console.log(`[AutoUpdater] ${mirror.label} 返回200但无版本信息，尝试下一源`);
+      } else {
+        lastError = `HTTP_${resp.status}`;
+        console.log(`[AutoUpdater] ${mirror.label} 返回 ${resp.status}`);
+      }
+    } catch (e) {
+      lastError = e.message;
+      console.log(`[AutoUpdater] ${mirror.label} 失败: ${e.message}`);
     }
-    return { error: 'http_' + response.status };
-  } catch (e) {
-    return { error: e.message };
   }
+  console.log(`[AutoUpdater] 所有镜像源均失败，最后错误: ${lastError}`);
+  return null;
+}
+
+ipcMain.handle('fetch-latest-version', async () => {
+  const result = await fetchLatestYml();
+  return result ? { version: result.version, error: null } : { error: 'network_error' };
 });
+
 ipcMain.handle('check-for-updates', async () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-checking');
@@ -1069,38 +1081,18 @@ ipcMain.handle('check-for-updates', async () => {
     }
     return { devMode: true };
   }
-  const { net } = require('electron');
-  let result;
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    const resp = await net.fetch(GHPROXY_LATEST, { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (resp.ok) {
-      const text = await resp.text();
-      const m = text.match(/^version:\s*(.+)$/m);
-      result = { version: m ? m[1].trim() : null };
-    } else {
-      result = { error: 'http_' + resp.status };
-    }
-  } catch(e) { result = { error: e.message }; }
-  console.log('[AutoUpdater] fetch 结果:', JSON.stringify(result));
-  if (result.error) {
+  const result = await fetchLatestYml();
+  if (!result || !result.version) {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-error', { message: '网络错误: ' + result.error, code: 'NETWORK_ERROR' });
+      mainWindow.webContents.send('update-error', { message: '无法连接到更新服务器，请检查网络', code: 'NETWORK_ERROR' });
     }
-    return result;
+    return { error: 'network_error' };
   }
   const remoteVersion = result.version;
-  if (!remoteVersion) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-error', { message: '解析更新信息失败', code: 'PARSE_ERROR' });
-    }
-    return { error: 'parse_error' };
-  }
   const needsUpdate = compareVersions(remoteVersion, currentVersion) > 0;
   console.log('[AutoUpdater] 远程版本:', remoteVersion, '需更新:', needsUpdate);
   if (needsUpdate) {
+    pendingUpdateInfo = result;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-available', { version: remoteVersion, currentVersion: currentVersion });
     }
@@ -1116,26 +1108,64 @@ ipcMain.on('download-update', () => {
   downloadUpdateFile();
 });
 
-// 下载并安装新版本（使用 Electron 内置下载，Chromium 网络栈）
-function downloadUpdateFile() {
-  const ver = GH_VERSION.replace(/^v/, ''); // v1.3.0 → 1.3.0
-  const exeName = 'AudioVisual-' + ver + '-x64.exe';
-  const exeUrl = GHPROXY_LATEST.replace('/latest.yml', '/' + exeName);
-  const exePath = path.join(app.getPath('temp'), exeName);
+// 获取应用可执行文件所在目录（便携版安装路径）
+function getAppInstallDir() {
+  const exePath = app.getPath('exe');
+  return path.dirname(exePath);
+}
 
-  console.log('[AutoUpdater] 开始下载:', exeUrl);
+// 使用 PowerShell 解压 zip 到目标目录（支持覆盖）
+function extractZip(zipPath, targetDir) {
+  return new Promise((resolve, reject) => {
+    const psCmd = `
+      try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath.replace(/'/g, "''")}', '${targetDir.replace(/'/g, "''")}', $true)
+        Write-Host "EXTRACT_OK"
+      } catch {
+        Write-Host "EXTRACT_FAIL:$_"
+      }
+    `;
+    const cp = require('child_process');
+    cp.exec(`powershell -NoProfile -Command "${psCmd.replace(/"/g, '\\"')}"`, {
+      timeout: 120000
+    }, (err, stdout) => {
+      if (stdout && stdout.includes('EXTRACT_OK')) {
+        resolve(true);
+      } else {
+        reject(new Error(stdout || (err && err.message) || '解压失败'));
+      }
+    });
+  });
+}
+
+// 下载并安装新版本 — 下载 → 解压覆盖 → 重启
+function downloadUpdateFile() {
+  if (!pendingUpdateInfo) {
+    console.error('[AutoUpdater] 没有更新信息，请先检查更新');
+    return;
+  }
+
+  const downloadUrl = pendingUpdateInfo.fileUrl;
+  if (!downloadUrl) {
+    console.error('[AutoUpdater] 下载地址为空');
+    return;
+  }
+  const fileName = path.basename(downloadUrl);
+  const downloadPath = path.join(app.getPath('temp'), fileName);
+
+  console.log('[AutoUpdater] 开始下载:', downloadUrl);
 
   if (!mainWindow || mainWindow.isDestroyed()) {
     console.error('[AutoUpdater] 主窗口不存在');
     return;
   }
 
-  // 使用 Electron 内置下载（Chromium 网络栈，更可靠）
-  mainWindow.webContents.downloadURL(exeUrl);
+  mainWindow.webContents.downloadURL(downloadUrl);
 
   mainWindow.webContents.session.on('will-download', (event, item) => {
     console.log('[AutoUpdater] 下载开始，文件:', item.getFilename(), '大小:', item.getTotalBytes());
-    item.setSavePath(exePath);
+    item.setSavePath(downloadPath);
 
     item.on('updated', (event, state) => {
       if (state === 'progressing') {
@@ -1154,16 +1184,31 @@ function downloadUpdateFile() {
 
     item.on('done', (event, state) => {
       if (state === 'completed') {
-        console.log('[AutoUpdater] 下载完成:', exePath);
+        console.log('[AutoUpdater] 下载完成:', downloadPath);
+        const appDir = getAppInstallDir();
+        console.log('[AutoUpdater] 安装目录:', appDir);
+
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('update-downloaded', { path: exePath });
+          mainWindow.webContents.send('update-downloaded', { path: downloadPath, installDir: appDir });
         }
-        // 自动启动安装程序
-        setTimeout(() => {
-          console.log('[AutoUpdater] 启动安装程序...');
-          shell.openPath(exePath);
-          app.quit();
-        }, 2000);
+        // 自动解压覆盖安装
+        setTimeout(async () => {
+          try {
+            console.log('[AutoUpdater] 开始解压覆盖安装...');
+            await extractZip(downloadPath, appDir);
+            console.log('[AutoUpdater] 安装完成，重启应用...');
+            app.relaunch();
+            app.quit();
+          } catch (err) {
+            console.error('[AutoUpdater] 安装失败:', err.message);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('update-error', {
+                message: '安装失败: ' + err.message,
+                code: 'INSTALL_ERROR'
+              });
+            }
+          }
+        }, 1500);
       } else {
         console.error('[AutoUpdater] 下载失败 state:', state);
         if (mainWindow && !mainWindow.isDestroyed()) {

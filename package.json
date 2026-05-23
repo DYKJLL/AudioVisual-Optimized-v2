@@ -9,7 +9,8 @@
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
-    "dist:all": "electron-builder --win --mac --linux"
+    "dist:all": "electron-builder --win --mac --linux",
+    "dist:portable": "electron-builder --win portable"
   },
   "author": {
     "name": "AudioVisual",
@@ -90,7 +91,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "deleteAppDataOnUninstall": false,
-      "shortcutName": "AudioVisual 1.3.3",
+      "shortcutName": "AudioVisual 1.3.4",
       "include": "./build/installer.nsh"
     },
     "electronDownload": {
