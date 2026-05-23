@@ -86,6 +86,13 @@
       "icon": "assets/images/icon-512.png",
       "category": "AudioVideo"
     },
+    "extraResources": [
+      {
+        "from": "update",
+        "to": "update",
+        "filter": ["**/*"]
+      }
+    ],
     "compression": "maximum",
     "nsis": {
       "oneClick": false,
